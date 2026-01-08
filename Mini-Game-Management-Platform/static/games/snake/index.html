@@ -1,154 +1,63 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>经典贪吃蛇 - MiniGame HUB</title>
+    <title>Snake - MiniGame HUB</title>
     <style>
-        body { background: #1a202c; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
-        canvas { border: 4px solid #2d3748; background: #000; box-shadow: 0 0 20px rgba(0,0,0,0.5); border-radius: 8px; }
-        .info { margin-bottom: 20px; text-align: center; }
-        #score { font-size: 24px; color: #4299e1; font-weight: bold; }
-        /* 游戏结束弹窗 */
-        #submitUI { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #2d3748; padding: 30px; border-radius: 15px; text-align: center; box-shadow: 0 0 50px rgba(0,0,0,0.8); border: 2px solid #4299e1; z-index: 100; }
-        input { padding: 10px; border-radius: 5px; border: none; margin: 10px 0; width: 200px; text-align: center; }
-        button { padding: 10px 20px; background: #4299e1; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        button:hover { background: #3182ce; }
+        body { background: #1a202c; color: white; text-align: center; font-family: sans-serif; }
+        canvas { border: 5px solid #2d3748; background: #000; margin-top: 20px; }
+        #over { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #2d3748; p: 20px; border-radius: 10px; border: 2px solid #4299e1; padding: 20px; }
     </style>
 </head>
 <body>
-
-    <div class="info">
-        <h1>🐍 经典贪吃蛇</h1>
-        <div>得分: <span id="score">0</span></div>
-        <p style="color: #a0aec0; font-size: 14px;">使用方向键控制移动</p>
-    </div>
-
-    <canvas id="gameCanvas" width="400" height="400"></canvas>
-
-    <div id="submitUI">
-        <h2 style="margin-top:0">游戏结束!</h2>
-        <p>最终得分: <span id="finalScore">0</span></p>
-        <input type="text" id="playerName" placeholder="输入你的大名" maxlength="10"><br>
-        <button onclick="uploadScore()">提交分数并返回大厅</button>
+    <h1>Snake Game</h1>
+    <canvas id="gc" width="400" height="400"></canvas>
+    <div id="over">
+        <h2>Game Over! Score: <span id="final">0</span></h2>
+        <button onclick="submit()" style="padding:10px; cursor:pointer;">提交并返回大厅</button>
     </div>
 
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const scoreElement = document.getElementById('score');
+        const ctx = document.getElementById('gc').getContext('2d');
+        let snake = [{x:10, y:10}], food = {x:15, y:15}, dx=0, dy=0, score=0, active=true;
 
-        let score = 0;
-        let gridSize = 20;
-        let tileCount = 20;
-        let snake = [{x: 10, y: 10}];
-        let food = {x: 15, y: 15};
-        let dx = 0;
-        let dy = 0;
-        let gameActive = true;
-
-        function drawGame() {
-            if (!gameActive) return;
-
-            updateSnake();
-            if (checkGameOver()) return;
-
-            // 清屏
-            ctx.fillStyle = 'black';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // 画食物
-            ctx.fillStyle = '#f56565';
-            ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
-
-            // 画蛇
-            ctx.fillStyle = '#48bb78';
-            snake.forEach((part, index) => {
-                if (index === 0) ctx.fillStyle = '#38a169'; // 蛇头颜色深一点
-                else ctx.fillStyle = '#48bb78';
-                ctx.fillRect(part.x * gridSize, part.y * gridSize, gridSize - 2, gridSize - 2);
-            });
-
-            setTimeout(drawGame, 100);
-        }
-
-        function updateSnake() {
+        function game() {
+            if(!active) return;
             const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+            if(dx||dy) snake.unshift(head);
+            if(head.x===food.x && head.y===food.y) {
+                score+=10; food={x:Math.floor(Math.random()*20), y:Math.floor(Math.random()*20)};
+            } else if(dx||dy) snake.pop();
 
-            // 如果没动（刚开始），不更新
-            if (dx === 0 && dy === 0) return;
-
-            snake.unshift(head);
-
-            // 吃食物检查
-            if (head.x === food.x && head.y === food.y) {
-                score += 10;
-                scoreElement.innerText = score;
-                createFood();
-            } else {
-                snake.pop();
+            if(head.x<0||head.x>=20||head.y<0||head.y>=20||snake.slice(1).some(p=>p.x===head.x&&p.y===head.y)) {
+                active=false; document.getElementById('over').style.display='block';
+                document.getElementById('final').innerText = score;
             }
+
+            ctx.fillStyle='black'; ctx.fillRect(0,0,400,400);
+            ctx.fillStyle='lime'; snake.forEach(p=>ctx.fillRect(p.x*20,p.y*20,18,18));
+            ctx.fillStyle='red'; ctx.fillRect(food.x*20,food.y*20,18,18);
+            setTimeout(game, 100);
         }
 
-        function createFood() {
-            food = {
-                x: Math.floor(Math.random() * tileCount),
-                y: Math.floor(Math.random() * tileCount)
-            };
-            // 确保食物不在蛇身上
-            if (snake.some(part => part.x === food.x && part.y === food.y)) createFood();
+        async function submit() {
+            const user = JSON.parse(localStorage.getItem('user'));
+            if(!user) return alert("请先登录！"), window.location.href='/';
+            await fetch('/api/scores', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({game_key:'snake', user_id: user.id, score: score})
+            });
+            window.location.href='/';
         }
 
-        function checkGameOver() {
-            if (dx === 0 && dy === 0) return false;
-
-            const head = snake[0];
-            // 撞墙
-            const hitWall = head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount;
-            // 咬到自己
-            const hitSelf = snake.slice(1).some(part => part.x === head.x && part.y === head.y);
-
-            if (hitWall || hitSelf) {
-                gameActive = false;
-                showSubmitUI();
-                return true;
-            }
-            return false;
-        }
-
-        function showSubmitUI() {
-            document.getElementById('finalScore').innerText = score;
-            document.getElementById('submitUI').style.display = 'block';
-        }
-
-        async function uploadScore() {
-            const name = document.getElementById('playerName').value || "无名英雄";
-            try {
-                await fetch('/api/scores', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        game_key: "snake",
-                        player_name: name,
-                        score: score
-                    })
-                });
-                window.location.href = '/'; // 提交后返回大厅
-            } catch (err) {
-                console.error("提交失败", err);
-                window.location.href = '/';
-            }
-        }
-
-        window.addEventListener('keydown', e => {
-            switch(e.key) {
-                case 'ArrowUp': if (dy !== 1) { dx = 0; dy = -1; } break;
-                case 'ArrowDown': if (dy !== -1) { dx = 0; dy = 1; } break;
-                case 'ArrowLeft': if (dx !== 1) { dx = -1; dy = 0; } break;
-                case 'ArrowRight': if (dx !== -1) { dx = 1; dy = 0; } break;
-            }
-        });
-
-        drawGame();
+        window.onkeydown = e => {
+            if(e.key==='ArrowUp'&&dy!==1){dx=0;dy=-1}
+            if(e.key==='ArrowDown'&&dy!==-1){dx=0;dy=1}
+            if(e.key==='ArrowLeft'&&dx!==1){dx=-1;dy=0}
+            if(e.key==='ArrowRight'&&dx!==-1){dx=1;dy=0}
+        };
+        game();
     </script>
 </body>
 </html>

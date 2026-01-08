@@ -2,86 +2,87 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的小游戏平台</title>
+    <title>Mini-Game HUB</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-900 text-white min-h-screen">
-    <div id="app" class="container mx-auto px-4 py-12" v-cloak>
-        <header class="text-center mb-16">
-            <h1 class="text-5xl font-extrabold mb-4 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                Mini-Game HUB
-            </h1>
-            <p class="text-gray-400">选择一个游戏，开启你的休闲时光</p>
-        </header>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div v-for="game in games" :key="game.id"
-                 class="bg-gray-800 rounded-2xl p-6 border border-gray-700 hover:border-blue-500 transition-all transform hover:-translate-y-2 cursor-pointer shadow-xl">
-                <div class="text-4xl mb-4">{{ game.icon }}</div>
-                <h3 class="text-2xl font-bold mb-2">{{ game.name }}</h3>
-                <p class="text-gray-400 mb-6 leading-relaxed">{{ game.desc }}</p>
-                <a :href="game.url"
-                   class="inline-block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition">
-                    立即开始
-                </a>
-                <button @click="showLeaderboard(game.id)" class="mt-4 w-full text-blue-400 hover:text-blue-300 text-sm font-semibold transition">
-                  🏆 查看排行榜
-                </button>
+<body class="bg-gray-900 text-white">
+    <div id="app" class="container mx-auto px-4 py-8">
+        <div class="flex justify-end mb-8 p-4 bg-gray-800 rounded-xl">
+            <div v-if="!user">
+                <input v-model="auth.username" placeholder="用户名" class="bg-gray-700 px-2 py-1 rounded mr-2">
+                <input v-model="auth.password" type="password" placeholder="密码" class="bg-gray-700 px-2 py-1 rounded mr-2">
+                <button @click="handleAuth('login')" class="bg-blue-600 px-4 py-1 rounded mr-2">登录</button>
+                <button @click="handleAuth('register')" class="bg-green-600 px-4 py-1 rounded">注册</button>
+            </div>
+            <div v-else class="flex items-center">
+                <img :src="user.avatar" class="w-8 h-8 rounded-full mr-2">
+                <span class="mr-4">你好, {{ user.username }}</span>
+                <button @click="logout" class="text-red-400">退出</button>
             </div>
         </div>
 
-        <div v-if="currentBoard.length > 0" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
-            <div class="bg-gray-800 rounded-2xl p-8 max-w-md w-full border border-gray-700 shadow-2xl">
-                <h2 class="text-2xl font-bold mb-4 flex justify-between">
-                    排行榜 <span>🏆</span>
-                </h2>
-                <div class="max-h-64 overflow-y-auto">
-                    <div v-for="(s, index) in currentBoard" :key="index" class="flex justify-between py-2 border-b border-gray-700">
-                        <span><span class="text-gray-500 mr-2">{{ index + 1 }}</span>{{ s.player_name }}</span>
-                        <span class="text-blue-400 font-bold">{{ s.score }}</span>
-                    </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div v-for="game in games" :key="game.id" class="bg-gray-800 p-6 rounded-2xl border border-gray-700">
+                <div class="text-4xl mb-2">{{ game.icon }}</div>
+                <h3 class="text-xl font-bold">{{ game.name }}</h3>
+                <p class="text-gray-400 text-sm mb-4">{{ game.desc }}</p>
+                <a :href="game.url" class="block w-full bg-blue-600 text-center py-2 rounded-lg mb-2">开始游戏</a>
+                <button @click="fetchLeaderboard(game.id)" class="w-full text-blue-400 text-sm font-bold">🏆 排行榜</button>
+            </div>
+        </div>
+
+        <div v-if="board.length > 0" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
+            <div class="bg-gray-800 p-8 rounded-2xl w-80 border border-gray-600">
+                <h2 class="text-2xl font-bold mb-4">Top 10</h2>
+                <div v-for="(s, i) in board" class="flex justify-between mb-2">
+                    <span>{{i+1}}. {{s.player_name}}</span>
+                    <span class="text-blue-400 font-bold">{{s.score}}</span>
                 </div>
-                <button @click="currentBoard = []" class="mt-6 w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg transition">关闭</button>
+                <button @click="board=[]" class="w-full mt-4 bg-gray-700 py-2 rounded">关闭</button>
             </div>
         </div>
     </div>
 
     <script>
-        const { createApp, ref, onMounted } = Vue
+        const { createApp, ref, onMounted } = Vue;
         createApp({
             setup() {
-                const games = ref([])
-                const currentBoard = ref([])
+                const user = ref(JSON.parse(localStorage.getItem('user')));
+                const games = ref([]);
+                const board = ref([]);
+                const auth = ref({username: '', password: ''});
 
-                const fetchGames = async () => {
-                    try {
-                        const res = await fetch('/api/games') // 使用相对路径更稳健
-                        games.value = await res.json()
-                    } catch (e) { console.error("加载游戏失败", e) }
-                }
+                const handleAuth = async (type) => {
+                    const res = await fetch(`/api/${type}`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(auth.value)
+                    });
+                    const data = await res.json();
+                    if(res.ok) {
+                        if(type === 'login') {
+                            user.value = data;
+                            localStorage.setItem('user', JSON.stringify(data));
+                        } else alert("注册成功，请登录");
+                    } else alert(data.detail);
+                };
 
-                // 修复2：函数必须写在 setup 内部并返回
-                const showLeaderboard = async (gameId) => {
-                    try {
-                        const res = await fetch(`/api/scores/${gameId}`)
-                        currentBoard.value = await res.json()
-                        // 如果没数据，给个提示
-                        if(currentBoard.value.length === 0) alert("该游戏暂无排行数据")
-                    } catch (e) { console.error("加载榜单失败", e) }
-                }
+                const fetchLeaderboard = async (id) => {
+                    const res = await fetch(`/api/scores/${id}`);
+                    board.value = await res.json();
+                };
 
-                onMounted(fetchGames)
+                const logout = () => { user.value = null; localStorage.removeItem('user'); };
 
-                return {
-                    games,
-                    currentBoard,
-                    showLeaderboard
-                }
+                onMounted(async () => {
+                    const res = await fetch('/api/games');
+                    games.value = await res.json();
+                });
+
+                return { user, games, board, auth, handleAuth, fetchLeaderboard, logout }
             }
         }).mount('#app')
     </script>
-    <style>[v-cloak] { display: none; }</style>
 </body>
 </html>
