@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white min-h-screen">
-    <div id="app" class="container mx-auto px-4 py-12">
+    <div id="app" class="container mx-auto px-4 py-12" v-cloak>
         <header class="text-center mb-16">
             <h1 class="text-5xl font-extrabold mb-4 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
                 Mini-Game HUB
@@ -26,6 +26,24 @@
                    class="inline-block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition">
                     立即开始
                 </a>
+                <button @click="showLeaderboard(game.id)" class="mt-4 w-full text-blue-400 hover:text-blue-300 text-sm font-semibold transition">
+                  🏆 查看排行榜
+                </button>
+            </div>
+        </div>
+
+        <div v-if="currentBoard.length > 0" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+            <div class="bg-gray-800 rounded-2xl p-8 max-w-md w-full border border-gray-700 shadow-2xl">
+                <h2 class="text-2xl font-bold mb-4 flex justify-between">
+                    排行榜 <span>🏆</span>
+                </h2>
+                <div class="max-h-64 overflow-y-auto">
+                    <div v-for="(s, index) in currentBoard" :key="index" class="flex justify-between py-2 border-b border-gray-700">
+                        <span><span class="text-gray-500 mr-2">{{ index + 1 }}</span>{{ s.player_name }}</span>
+                        <span class="text-blue-400 font-bold">{{ s.score }}</span>
+                    </div>
+                </div>
+                <button @click="currentBoard = []" class="mt-6 w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg transition">关闭</button>
             </div>
         </div>
     </div>
@@ -35,14 +53,35 @@
         createApp({
             setup() {
                 const games = ref([])
+                const currentBoard = ref([])
+
                 const fetchGames = async () => {
-                    const res = await fetch('http://127.0.0.1:8000/api/games')
-                    games.value = await res.json()
+                    try {
+                        const res = await fetch('/api/games') // 使用相对路径更稳健
+                        games.value = await res.json()
+                    } catch (e) { console.error("加载游戏失败", e) }
                 }
+
+                // 修复2：函数必须写在 setup 内部并返回
+                const showLeaderboard = async (gameId) => {
+                    try {
+                        const res = await fetch(`/api/scores/${gameId}`)
+                        currentBoard.value = await res.json()
+                        // 如果没数据，给个提示
+                        if(currentBoard.value.length === 0) alert("该游戏暂无排行数据")
+                    } catch (e) { console.error("加载榜单失败", e) }
+                }
+
                 onMounted(fetchGames)
-                return { games }
+
+                return {
+                    games,
+                    currentBoard,
+                    showLeaderboard
+                }
             }
         }).mount('#app')
     </script>
+    <style>[v-cloak] { display: none; }</style>
 </body>
 </html>
