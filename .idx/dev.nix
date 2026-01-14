@@ -21,16 +21,16 @@
 
     # Enable previews
     previews = {
-      enable = true;
+      enable = false;
       previews = {
-        web = {
-          command = ["uvicorn" "main:app" "--host" "0.0.0.0" "--port" "$PORT" "--reload"];
-          manager = "web";
-          cwd = "Mini-Game-Management-Platform";
-          env = {
-            PORT = "$PORT";
-          };
-        };
+        # web = {
+        #   command = ["uvicorn" "main:app" "--host" "0.0.0.0" "--port" "$PORT" "--reload"];
+        #   manager = "web";
+        #   cwd = "Mini-Game-Management-Platform";
+        #   env = {
+        #     PORT = "$PORT";
+        #   };
+        # };
       };
     };
 
