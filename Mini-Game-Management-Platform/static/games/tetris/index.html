@@ -3,9 +3,24 @@
 <head>
     <title>Tetris</title>
     <style>
-        body { background: #202028; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        canvas { border: 2px solid #fff; }
-        #score { font-size: 20px; margin-bottom: 10px; }
+        body { background: #202028; color: #fff; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        canvas { 
+            border: 2px solid #333; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.5); 
+            background-color: #000;
+            background-image: 
+                linear-gradient(#111 1px, transparent 1px),
+                linear-gradient(90deg, #111 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        #score { 
+            font-size: 24px; 
+            margin-bottom: 15px; 
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px rgba(255,255,255,0.3);
+        }
     </style>
 </head>
 <body>
@@ -21,7 +36,6 @@
         const userId = urlParams.get('uid');
         const gameKey = urlParams.get('gkey');
 
-        // 监听退出指令
         window.addEventListener('message', async function(e) {
             if(e.data === 'submit_and_exit') {
                 await submitScore();
@@ -79,8 +93,7 @@
         }
 
         function draw() {
-            context.fillStyle = '#000';
-            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.clearRect(0, 0, canvas.width, canvas.height);
             drawMatrix(arena, {x: 0, y: 0});
             drawMatrix(player.matrix, player.pos);
         }
@@ -89,8 +102,23 @@
             matrix.forEach((row, y) => {
                 row.forEach((value, x) => {
                     if (value !== 0) {
+                        // Base color
                         context.fillStyle = colors[value];
                         context.fillRect(x + offset.x, y + offset.y, 1, 1);
+                        
+                        // Bevel effect (Highlight top-left)
+                        context.fillStyle = 'rgba(255,255,255,0.4)';
+                        context.fillRect(x + offset.x, y + offset.y, 1, 0.1);
+                        context.fillRect(x + offset.x, y + offset.y, 0.1, 1);
+                        
+                        // Bevel effect (Shadow bottom-right)
+                        context.fillStyle = 'rgba(0,0,0,0.4)';
+                        context.fillRect(x + offset.x + 0.9, y + offset.y, 0.1, 1);
+                        context.fillRect(x + offset.x, y + offset.y + 0.9, 1, 0.1);
+                        
+                        // Inner square for detail
+                        context.fillStyle = 'rgba(0,0,0,0.1)';
+                        context.fillRect(x + offset.x + 0.2, y + offset.y + 0.2, 0.6, 0.6);
                     }
                 });
             });
@@ -197,7 +225,7 @@
             } catch(e) { console.error(e); }
         }
 
-        const colors = [null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF'];
+        const colors = [null, '#e54242', '#3e8ed0', '#48ce60', '#d846ef', '#f59e0b', '#facc15', '#3b82f6'];
         const arena = createMatrix(12, 20);
         const player = { pos: {x: 0, y: 0}, matrix: null, score: 0 };
 

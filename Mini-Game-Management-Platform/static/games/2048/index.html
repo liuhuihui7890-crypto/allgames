@@ -3,37 +3,90 @@
 <head>
     <title>2048</title>
     <style>
-        body { font-family: "Clear Sans", "Helvetica Neue", Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #faf8ef; margin: 0;}
-        .container { width: 400px; background: #bbada0; border-radius: 6px; padding: 10px; position: relative; }
-        .grid-cell { width: 87.5px; height: 87.5px; background: rgba(238, 228, 218, 0.35); border-radius: 3px; float: left; margin: 5px; font-size: 30px; font-weight: bold; text-align: center; line-height: 87.5px; color: #776e65; }
-        .row:after { content: ""; display: table; clear: both; }
-        .n-2 { background: #eee4da; }
-        .n-4 { background: #ede0c8; }
+        body { font-family: "Clear Sans", "Helvetica Neue", Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #faf8ef; margin: 0; user-select: none; }
+        .container { 
+            width: 400px; height: 400px; 
+            background: #bbada0; 
+            border-radius: 10px; 
+            padding: 10px; 
+            position: relative; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .grid-cell { 
+            width: 87.5px; height: 87.5px; 
+            border-radius: 6px; 
+            position: absolute; 
+            font-size: 35px; 
+            font-weight: bold; 
+            text-align: center; 
+            line-height: 87.5px; 
+            transition: all 0.15s ease-in-out;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+        }
+        /* Grid Backgrounds */
+        .grid-bg-cell {
+            width: 87.5px; height: 87.5px; 
+            background: rgba(238, 228, 218, 0.35); 
+            border-radius: 6px; 
+            float: left; 
+            margin: 5px;
+        }
+        
+        /* Number Colors */
+        .n-0 { background: transparent; z-index: -1; }
+        .n-2 { background: #eee4da; color: #776e65; }
+        .n-4 { background: #ede0c8; color: #776e65; }
         .n-8 { background: #f2b179; color: #f9f6f2; }
         .n-16 { background: #f59563; color: #f9f6f2; }
         .n-32 { background: #f67c5f; color: #f9f6f2; }
         .n-64 { background: #f65e3b; color: #f9f6f2; }
-        .n-128 { background: #edcf72; color: #f9f6f2; font-size: 25px; }
-        .n-256 { background: #edcc61; color: #f9f6f2; font-size: 25px; }
-        .n-512 { background: #edc850; color: #f9f6f2; font-size: 25px; }
-        .n-1024 { background: #edc53f; color: #f9f6f2; font-size: 20px; }
-        .n-2048 { background: #edc22e; color: #f9f6f2; font-size: 20px; }
-        #score { font-size: 20px; margin-bottom: 20px; }
+        .n-128 { background: #edcf72; color: #f9f6f2; font-size: 30px; box-shadow: 0 0 30px 10px rgba(243, 215, 116, 0.3), inset 0 0 0 1px rgba(255,255,255,0.2); }
+        .n-256 { background: #edcc61; color: #f9f6f2; font-size: 30px; box-shadow: 0 0 30px 10px rgba(243, 215, 116, 0.4), inset 0 0 0 1px rgba(255,255,255,0.2); }
+        .n-512 { background: #edc850; color: #f9f6f2; font-size: 30px; box-shadow: 0 0 30px 10px rgba(243, 215, 116, 0.5), inset 0 0 0 1px rgba(255,255,255,0.2); }
+        .n-1024 { background: #edc53f; color: #f9f6f2; font-size: 25px; }
+        .n-2048 { background: #edc22e; color: #f9f6f2; font-size: 25px; box-shadow: 0 0 30px 10px rgba(243, 215, 116, 0.6), inset 0 0 0 1px rgba(255,255,255,0.2); }
+        
+        #score-container { 
+            background: #bbada0; 
+            padding: 10px 25px; 
+            border-radius: 6px; 
+            color: white; 
+            font-weight: bold; 
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        #score-label { color: #eee4da; font-size: 14px; text-transform: uppercase; }
+        #score { font-size: 25px; }
     </style>
 </head>
 <body>
-    <div id="score">Score: 0</div>
-    <div class="container" id="grid"></div>
+    <div id="score-container">
+        <span id="score-label">Score</span>
+        <span id="score">0</span>
+    </div>
+    
+    <div class="container" id="grid-container">
+        <!-- Background Grid -->
+        <div class="grid-bg-cell"></div><div class="grid-bg-cell"></div><div class="grid-bg-cell"></div><div class="grid-bg-cell"></div>
+        <div class="grid-bg-cell"></div><div class="grid-bg-cell"></div><div class="grid-bg-cell"></div><div class="grid-bg-cell"></div>
+        <div class="grid-bg-cell"></div><div class="grid-bg-cell"></div><div class="grid-bg-cell"></div><div class="grid-bg-cell"></div>
+        <div class="grid-bg-cell"></div><div class="grid-bg-cell"></div><div class="grid-bg-cell"></div><div class="grid-bg-cell"></div>
+        
+        <!-- Tiles will be injected here -->
+        <div id="tile-container"></div>
+    </div>
+
     <script>
         const size = 4;
         let grid = [];
         let score = 0;
-        const container = document.getElementById('grid');
+        const tileContainer = document.getElementById('tile-container');
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('uid');
         const gameKey = urlParams.get('gkey');
 
-        // 监听退出指令
         window.addEventListener('message', async function(e) {
             if(e.data === 'submit_and_exit') {
                 await submitScore();
@@ -63,21 +116,27 @@
         }
 
         function draw() {
-            container.innerHTML = '';
-            document.getElementById('score').innerText = 'Score: ' + score;
+            tileContainer.innerHTML = '';
+            document.getElementById('score').innerText = score;
+            
             for (let r = 0; r < size; r++) {
-                const row = document.createElement('div');
-                row.className = 'row';
                 for (let c = 0; c < size; c++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'grid-cell';
-                    if (grid[r][c] > 0) {
-                        cell.innerText = grid[r][c];
-                        cell.classList.add('n-' + grid[r][c]);
+                    const val = grid[r][c];
+                    if (val > 0) {
+                        const tile = document.createElement('div');
+                        tile.className = 'grid-cell n-' + val;
+                        tile.innerText = val;
+                        // Position calculation: margin 5px + width 87.5
+                        // top = 5 + r * (87.5 + 10)
+                        // left = 5 + c * (87.5 + 10)
+                        const top = 15 + r * 97.5;
+                        const left = 15 + c * 97.5;
+                        tile.style.top = top + 'px';
+                        tile.style.left = left + 'px';
+                        
+                        tileContainer.appendChild(tile);
                     }
-                    row.appendChild(cell);
                 }
-                container.appendChild(row);
             }
         }
 
