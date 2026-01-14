@@ -37,16 +37,18 @@
         }
 
         window.onload = function() {
-            const framesPerSecond = 30;
-            setInterval(function() {
-                moveEverything();
-                drawEverything();
-            }, 1000/framesPerSecond);
+            requestAnimationFrame(gameLoop);
 
             canvas.addEventListener('mousemove', function(evt) {
                 const mousePos = calculateMousePos(evt);
                 paddle1Y = mousePos.y - (PADDLE_HEIGHT/2);
             });
+        }
+
+        function gameLoop() {
+            moveEverything();
+            drawEverything();
+            requestAnimationFrame(gameLoop);
         }
 
         function computerMovement() {
@@ -60,14 +62,19 @@
             ballX += ballSpeedX;
             ballY += ballSpeedY;
             
-            if(ballX < 0) {
+            // Left Side
+            if(ballX < 0 + PADDLE_THICKNESS) { // Check collision with paddle thickness
                 if(ballY > paddle1Y && ballY < paddle1Y+PADDLE_HEIGHT) {
                     ballSpeedX = -ballSpeedX;
+                    
+                    // Position Correction: Move ball out of paddle to prevent sticking
+                    ballX = PADDLE_THICKNESS + 1; 
+
                     const deltaY = ballY - (paddle1Y+PADDLE_HEIGHT/2);
                     ballSpeedY = deltaY * 0.35;
                     score++;
                     document.getElementById('msg').innerText = "Mouse to move | Score: " + score;
-                } else {
+                } else if(ballX < 0) {
                     // Game Over
                     submitScore();
                     score = 0;
@@ -75,17 +82,30 @@
                     document.getElementById('msg').innerText = "Mouse to move | Score: " + score;
                 }
             }
-            if(ballX > canvas.width) {
+            
+            // Right Side
+            if(ballX > canvas.width - PADDLE_THICKNESS) {
                 if(ballY > paddle2Y && ballY < paddle2Y+PADDLE_HEIGHT) {
                     ballSpeedX = -ballSpeedX;
+                    
+                    // Position Correction
+                    ballX = canvas.width - PADDLE_THICKNESS - 1;
+
                     const deltaY = ballY - (paddle2Y+PADDLE_HEIGHT/2);
                     ballSpeedY = deltaY * 0.35;
-                } else {
+                } else if(ballX > canvas.width) {
                     ballReset();
                 }
             }
-            if(ballY < 0) ballSpeedY = -ballSpeedY;
-            if(ballY > canvas.height) ballSpeedY = -ballSpeedY;
+            
+            if(ballY < 0) {
+                ballSpeedY = -ballSpeedY;
+                ballY = 1; // Correction
+            }
+            if(ballY > canvas.height) {
+                ballSpeedY = -ballSpeedY;
+                ballY = canvas.height - 1; // Correction
+            }
         }
 
         function drawEverything() {

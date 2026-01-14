@@ -64,7 +64,7 @@
     }
 
     const bird = {
-        x: 50, y: 150, radius: 12, speed: 0, gravity: 0.25, jump: 4.6,
+        x: 50, y: 150, radius: 12, speed: 0, gravity: 0.25, jump: 3.6, // Adjusted jump from 4.6 to 3.6
         draw: function(){
             ctx.fillStyle = "yellow";
             ctx.beginPath();
@@ -78,7 +78,7 @@
             else{
                 this.speed += this.gravity;
                 this.y += this.speed;
-                if(this.y + this.radius >= cvs.height - 112){ // fg height approx 112
+                if(this.y + this.radius >= cvs.height - 112){ 
                     this.y = cvs.height - 112 - this.radius;
                     if(state.current == state.game){
                         state.current = state.over;
@@ -128,7 +128,6 @@
         reset: function(){ this.position = []; }
     }
 
-    // simplistic fg
     function drawFg() {
         ctx.fillStyle = "#ded895";
         ctx.fillRect(0, cvs.height - 112, cvs.width, 112);
