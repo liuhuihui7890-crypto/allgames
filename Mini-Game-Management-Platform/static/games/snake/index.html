@@ -5,10 +5,11 @@
     <title>Snake - MiniGame HUB</title>
     <style>
         body { background: #1a202c; color: white; text-align: center; font-family: sans-serif; }
-        canvas { border: 5px solid #2d3748; background: #000; margin-top: 20px; }
-        #over { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #2d3748; padding: 20px; border-radius: 10px; border: 2px solid #4299e1; z-index: 10; }
+        canvas { border: 5px solid #2d3748; background: #222; margin-top: 20px; box-shadow: 0 0 20px rgba(0,0,0,0.5); border-radius: 4px; }
+        #over { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #2d3748; padding: 20px; border-radius: 10px; border: 2px solid #4299e1; z-index: 10; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
         button { background: #4299e1; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 10px; font-weight: bold; }
         button:hover { background: #3182ce; }
+        h1 { margin-bottom: 0; color: #68d391; text-shadow: 2px 2px 0px #000; }
     </style>
 </head>
 <body>
@@ -20,31 +21,200 @@
     </div>
 
     <script>
-        const ctx = document.getElementById('gc').getContext('2d');
-        let snake = [{x:10, y:10}], food = {x:15, y:15}, dx=0, dy=0, score=0, active=true;
+        const canvas = document.getElementById('gc');
+        const ctx = canvas.getContext('2d');
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+        
+        let snake = [{x:10, y:10}];
+        let food = {x:15, y:15};
+        let dx=0, dy=0;
+        let score=0;
+        let active=true;
         
         // 获取 URL 参数
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('uid');
         const gameKey = urlParams.get('gkey') || 'snake';
 
+        // 监听退出指令
+        window.addEventListener('message', async function(e) {
+            if(e.data === 'submit_and_exit') {
+                await submitScoreOnly();
+                window.parent.postMessage('score_submitted', '*');
+            }
+        });
+        
+        window.onload = function() { window.focus(); };
+
         function game() {
             if(!active) return;
+            
             const head = {x: snake[0].x + dx, y: snake[0].y + dy};
-            if(dx||dy) snake.unshift(head);
-            if(head.x===food.x && head.y===food.y) {
-                score+=10; food={x:Math.floor(Math.random()*20), y:Math.floor(Math.random()*20)};
-            } else if(dx||dy) snake.pop();
-
-            if(head.x<0||head.x>=20||head.y<0||head.y>=20||snake.slice(1).some(p=>p.x===head.x&&p.y===head.y)) {
-                active=false; document.getElementById('over').style.display='block';
-                document.getElementById('final').innerText = score;
+            
+            // 只有当有移动时才处理逻辑
+            if(dx!==0 || dy!==0) {
+                snake.unshift(head);
+                if(head.x===food.x && head.y===food.y) {
+                    score+=10; 
+                    spawnFood();
+                } else {
+                    snake.pop();
+                }
             }
 
-            ctx.fillStyle='black'; ctx.fillRect(0,0,400,400);
-            ctx.fillStyle='lime'; snake.forEach(p=>ctx.fillRect(p.x*20,p.y*20,18,18));
-            ctx.fillStyle='red'; ctx.fillRect(food.x*20,food.y*20,18,18);
-            setTimeout(game, 200); 
+            // 碰撞检测
+            if(head.x<0||head.x>=tileCount||head.y<0||head.y>=tileCount||snake.slice(1).some(p=>p.x===head.x&&p.y===head.y)) {
+                active=false; 
+                document.getElementById('over').style.display='block';
+                document.getElementById('final').innerText = score;
+                return;
+            }
+
+            draw();
+            setTimeout(game, 150); // 稍微加快一点速度，原来是200
+        }
+        
+        function spawnFood() {
+            food = {
+                x: Math.floor(Math.random() * tileCount),
+                y: Math.floor(Math.random() * tileCount)
+            };
+            // 确保食物不生成在蛇身上
+            if(snake.some(p => p.x === food.x && p.y === food.y)) {
+                spawnFood();
+            }
+        }
+
+        function draw() {
+            // 背景
+            ctx.fillStyle='#222'; 
+            ctx.fillRect(0,0,canvas.width,canvas.height);
+            
+            // 网格线 (可选，增加复古感)
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 0.5;
+            for(let i=0; i<tileCount; i++) {
+                ctx.beginPath(); ctx.moveTo(i*gridSize, 0); ctx.lineTo(i*gridSize, canvas.height); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0, i*gridSize); ctx.lineTo(canvas.width, i*gridSize); ctx.stroke();
+            }
+
+            // 画蛇
+            snake.forEach((p, i) => {
+                const x = p.x * gridSize;
+                const y = p.y * gridSize;
+                const size = gridSize - 2; // 稍微留点缝隙
+
+                if (i === 0) {
+                    // 蛇头
+                    ctx.fillStyle = '#48bb78'; // 亮绿色
+                    // 圆角矩形作为头
+                    roundRect(ctx, x, y, size, size, 5, true);
+                    
+                    // 画眼睛
+                    ctx.fillStyle = 'white';
+                    ctx.beginPath();
+                    
+                    // 根据方向调整眼睛位置
+                    let eyeOffsetX = 0, eyeOffsetY = 0;
+                    if (dx === 1) eyeOffsetX = 4;
+                    if (dx === -1) eyeOffsetX = -4;
+                    if (dy === 1) eyeOffsetY = 4;
+                    if (dy === -1) eyeOffsetY = -4;
+
+                    // 左眼
+                    ctx.arc(x + size/2 - 4 + eyeOffsetX, y + size/2 - 4 + eyeOffsetY, 2, 0, Math.PI*2);
+                    // 右眼
+                    ctx.arc(x + size/2 + 4 + eyeOffsetX, y + size/2 - 4 + eyeOffsetY, 2, 0, Math.PI*2);
+                    
+                    // 如果是垂直移动，眼睛排列稍微变一下
+                    if(dy !== 0) {
+                         // 重绘眼睛以适应垂直方向（左右排列）
+                         ctx.beginPath();
+                         ctx.arc(x + size/2 - 4, y + size/2 + eyeOffsetY, 2, 0, Math.PI*2);
+                         ctx.arc(x + size/2 + 4, y + size/2 + eyeOffsetY, 2, 0, Math.PI*2);
+                    }
+                    if(dx !== 0) {
+                         // 重绘眼睛以适应水平方向（上下排列）
+                         ctx.beginPath();
+                         ctx.arc(x + size/2 + eyeOffsetX, y + size/2 - 4, 2, 0, Math.PI*2);
+                         ctx.arc(x + size/2 + eyeOffsetX, y + size/2 + 4, 2, 0, Math.PI*2);
+                    }
+
+                    ctx.fill();
+                    
+                    // 瞳孔
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                     if(dy !== 0) {
+                         ctx.arc(x + size/2 - 4, y + size/2 + eyeOffsetY, 1, 0, Math.PI*2);
+                         ctx.arc(x + size/2 + 4, y + size/2 + eyeOffsetY, 1, 0, Math.PI*2);
+                    } else {
+                         ctx.arc(x + size/2 + eyeOffsetX, y + size/2 - 4, 1, 0, Math.PI*2);
+                         ctx.arc(x + size/2 + eyeOffsetX, y + size/2 + 4, 1, 0, Math.PI*2);
+                    }
+                    ctx.fill();
+
+                } else {
+                    // 蛇身
+                    // 渐变色，越靠近尾巴颜色越深
+                    const colorVal = Math.max(100, 187 - i * 2);
+                    ctx.fillStyle = `rgb(72, ${colorVal}, 120)`; 
+                    
+                    // 圆形身体看起来更像蛇
+                    ctx.beginPath();
+                    ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI*2);
+                    ctx.fill();
+                }
+            });
+
+            // 画食物 (苹果)
+            const fx = food.x * gridSize;
+            const fy = food.y * gridSize;
+            const fsize = gridSize - 2;
+            
+            // 苹果本体
+            ctx.fillStyle = '#f56565'; // 红色
+            ctx.beginPath();
+            ctx.arc(fx + fsize/2, fy + fsize/2 + 1, fsize/2 - 1, 0, Math.PI*2);
+            ctx.fill();
+            
+            // 苹果柄
+            ctx.fillStyle = '#2f855a'; // 深绿色
+            ctx.fillRect(fx + fsize/2 - 1, fy, 2, 4);
+            
+            // 苹果光泽
+            ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            ctx.beginPath();
+            ctx.arc(fx + fsize/2 - 3, fy + fsize/2 - 2, 2, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        // 辅助函数：绘制圆角矩形
+        function roundRect(ctx, x, y, width, height, radius, fill) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            if (fill) ctx.fill();
+        }
+
+        async function submitScoreOnly() {
+            if(!userId) return;
+            try {
+                await fetch('/api/scores', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ game_key: gameKey, user_id: parseInt(userId), score: score })
+                });
+            } catch (err) { console.error(err); }
         }
 
         async function submitAndRestart() {
@@ -53,22 +223,15 @@
                     await fetch('/api/scores', {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            game_key: gameKey, 
-                            user_id: parseInt(userId), 
-                            score: score
-                        })
+                        body: JSON.stringify({ game_key: gameKey, user_id: parseInt(userId), score: score })
                     });
                     alert("分数提交成功！");
-                } catch (err) {
-                    console.error(err);
-                    alert("提交失败");
-                }
+                } catch (err) { console.error(err); alert("提交失败"); }
             } else {
                 alert("未登录，无法提交分数");
             }
             
-            // 重置游戏
+            // 重置
             snake = [{x:10, y:10}];
             food = {x:15, y:15};
             dx=0; dy=0; score=0; active=true;
@@ -77,15 +240,15 @@
         }
 
         window.onkeydown = e => {
-            // 防止按键滚动页面
-            if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) {
-                e.preventDefault();
-            }
+            if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) e.preventDefault();
             if(e.key==='ArrowUp'&&dy!==1){dx=0;dy=-1}
             if(e.key==='ArrowDown'&&dy!==-1){dx=0;dy=1}
             if(e.key==='ArrowLeft'&&dx!==1){dx=-1;dy=0}
             if(e.key==='ArrowRight'&&dx!==-1){dx=1;dy=0}
         };
+        
+        // 初始绘制一次，让玩家看到开始状态
+        draw();
         game();
     </script>
 </body>
