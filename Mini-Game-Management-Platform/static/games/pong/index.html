@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pong</title>
+    <style>
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #000; color: #fff; font-family: sans-serif; flex-direction: column; }
+        canvas { border: 2px solid #fff; }
+        #msg { margin-bottom: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="msg">Mouse to move | Score: 0</div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const canvasContext = canvas.getContext('2d');
+        let ballX = 50;
+        let ballY = 50;
+        let ballSpeedX = 10;
+        let ballSpeedY = 4;
+        let paddle1Y = 250;
+        let paddle2Y = 250;
+        const PADDLE_THICKNESS = 10;
+        const PADDLE_HEIGHT = 100;
+        let score = 0;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('uid');
+        const gameKey = urlParams.get('gkey');
+
+        function calculateMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            const root = document.documentElement;
+            const mouseX = evt.clientX - rect.left - root.scrollLeft;
+            const mouseY = evt.clientY - rect.top - root.scrollTop;
+            return { x: mouseX, y: mouseY };
+        }
+
+        window.onload = function() {
+            const framesPerSecond = 30;
+            setInterval(function() {
+                moveEverything();
+                drawEverything();
+            }, 1000/framesPerSecond);
+
+            canvas.addEventListener('mousemove', function(evt) {
+                const mousePos = calculateMousePos(evt);
+                paddle1Y = mousePos.y - (PADDLE_HEIGHT/2);
+            });
+        }
+
+        function computerMovement() {
+            const paddle2YCenter = paddle2Y + (PADDLE_HEIGHT/2);
+            if(paddle2YCenter < ballY - 35) { paddle2Y += 6; }
+            else if(paddle2YCenter > ballY + 35) { paddle2Y -= 6; }
+        }
+
+        function moveEverything() {
+            computerMovement();
+            ballX += ballSpeedX;
+            ballY += ballSpeedY;
+            
+            if(ballX < 0) {
+                if(ballY > paddle1Y && ballY < paddle1Y+PADDLE_HEIGHT) {
+                    ballSpeedX = -ballSpeedX;
+                    const deltaY = ballY - (paddle1Y+PADDLE_HEIGHT/2);
+                    ballSpeedY = deltaY * 0.35;
+                    score++;
+                    document.getElementById('msg').innerText = "Mouse to move | Score: " + score;
+                } else {
+                    // Game Over
+                    submitScore();
+                    score = 0;
+                    ballReset();
+                    document.getElementById('msg').innerText = "Mouse to move | Score: " + score;
+                }
+            }
+            if(ballX > canvas.width) {
+                if(ballY > paddle2Y && ballY < paddle2Y+PADDLE_HEIGHT) {
+                    ballSpeedX = -ballSpeedX;
+                    const deltaY = ballY - (paddle2Y+PADDLE_HEIGHT/2);
+                    ballSpeedY = deltaY * 0.35;
+                } else {
+                    ballReset();
+                }
+            }
+            if(ballY < 0) ballSpeedY = -ballSpeedY;
+            if(ballY > canvas.height) ballSpeedY = -ballSpeedY;
+        }
+
+        function drawEverything() {
+            // background
+            colorRect(0,0,canvas.width,canvas.height,'black');
+            // left player paddle
+            colorRect(0,paddle1Y,PADDLE_THICKNESS,PADDLE_HEIGHT,'white');
+            // right computer paddle
+            colorRect(canvas.width-PADDLE_THICKNESS,paddle2Y,PADDLE_THICKNESS,PADDLE_HEIGHT,'white');
+            // ball
+            colorCircle(ballX,ballY,10,'white');
+        }
+
+        function colorCircle(centerX, centerY, radius, drawColor) {
+            canvasContext.fillStyle = drawColor;
+            canvasContext.beginPath();
+            canvasContext.arc(centerX, centerY, radius, 0,Math.PI*2,true);
+            canvasContext.fill();
+        }
+
+        function colorRect(leftX,topY, width,height, drawColor) {
+            canvasContext.fillStyle = drawColor;
+            canvasContext.fillRect(leftX,topY, width,height);
+        }
+
+        function ballReset() {
+            ballSpeedX = -ballSpeedX;
+            ballX = canvas.width/2;
+            ballY = canvas.height/2;
+        }
+
+        async function submitScore() {
+            if(!userId) return;
+            try {
+                await fetch('/api/scores', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        game_key: gameKey || 'pong',
+                        user_id: parseInt(userId),
+                        score: score
+                    })
+                });
+            } catch(e) {}
+        }
+    </script>
+</body>
+</html>

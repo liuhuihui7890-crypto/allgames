@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Flappy</title>
+    <style>
+        body { margin: 0; background: #70c5ce; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif;}
+        canvas { border: 2px solid #fff; background: #70c5ce; }
+    </style>
+</head>
+<body>
+<canvas id="canvas" width="320" height="480"></canvas>
+<script>
+    const cvs = document.getElementById("canvas");
+    const ctx = cvs.getContext("2d");
+
+    let frames = 0;
+    const DEGREE = Math.PI/180;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const userId = urlParams.get('uid');
+    const gameKey = urlParams.get('gkey');
+
+    const state = { current: 0, getReady: 0, game: 1, over: 2 };
+    const startBtn = { x: 120, y: 263, w: 83, h: 29 };
+
+    cvs.addEventListener("click", function(evt){
+        switch(state.current){
+            case state.getReady: state.current = state.game; break;
+            case state.game: bird.flap(); break;
+            case state.over:
+                const rect = cvs.getBoundingClientRect();
+                const clickX = evt.clientX - rect.left;
+                const clickY = evt.clientY - rect.top;
+                if(clickX >= startBtn.x && clickX <= startBtn.x + startBtn.w && clickY >= startBtn.y && clickY <= startBtn.y + startBtn.h){
+                    bird.speedReset();
+                    pipes.reset();
+                    score.reset();
+                    state.current = state.getReady;
+                }
+                break;
+        }
+    });
+
+    const score = {
+        best: 0,
+        value: 0,
+        draw: function(){
+            ctx.fillStyle = "#FFF";
+            ctx.strokeStyle = "#000";
+            if(state.current == state.game){
+                ctx.lineWidth = 2;
+                ctx.font = "35px Teko";
+                ctx.fillText(this.value, cvs.width/2, 50);
+                ctx.strokeText(this.value, cvs.width/2, 50);
+            }else if(state.current == state.over){
+                ctx.font = "25px Teko";
+                ctx.fillText(this.value, 225, 186);
+                ctx.strokeText(this.value, 225, 186);
+                ctx.fillText(this.best, 225, 228);
+                ctx.strokeText(this.best, 225, 228);
+            }
+        },
+        reset: function(){ this.value = 0; }
+    }
+
+    const bird = {
+        x: 50, y: 150, radius: 12, speed: 0, gravity: 0.25, jump: 4.6,
+        draw: function(){
+            ctx.fillStyle = "yellow";
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+            ctx.fill();
+            ctx.stroke();
+        },
+        flap: function(){ this.speed = -this.jump; },
+        update: function(){
+            if(state.current == state.getReady){ this.y = 150; }
+            else{
+                this.speed += this.gravity;
+                this.y += this.speed;
+                if(this.y + this.radius >= cvs.height - 112){ // fg height approx 112
+                    this.y = cvs.height - 112 - this.radius;
+                    if(state.current == state.game){
+                        state.current = state.over;
+                        submitScore(score.value);
+                    }
+                }
+            }
+        },
+        speedReset: function(){ this.speed = 0; }
+    }
+
+    const pipes = {
+        position: [], w: 53, h: 400, gap: 100, dx: 2,
+        draw: function(){
+            for(let i=0; i<this.position.length; i++){
+                let p = this.position[i];
+                let topY = p.y;
+                let bottomY = p.y + this.h + this.gap;
+                ctx.fillStyle = "green";
+                ctx.fillRect(p.x, topY, this.w, this.h);
+                ctx.fillRect(p.x, bottomY, this.w, this.h);
+            }
+        },
+        update: function(){
+            if(state.current !== state.game) return;
+            if(frames % 100 == 0){
+                this.position.push({ x: cvs.width, y: -150 * (Math.random() + 1) });
+            }
+            for(let i=0; i<this.position.length; i++){
+                let p = this.position[i];
+                p.x -= this.dx;
+                let bottomPipeY = p.y + this.h + this.gap;
+                
+                // Collision
+                if(bird.x + bird.radius > p.x && bird.x - bird.radius < p.x + this.w && 
+                   (bird.y - bird.radius < p.y + this.h || bird.y + bird.radius > bottomPipeY)){
+                    state.current = state.over;
+                    submitScore(score.value);
+                }
+                if(p.x + this.w <= 0){
+                    this.position.shift();
+                    score.value += 1;
+                    score.best = Math.max(score.value, score.best);
+                }
+            }
+        },
+        reset: function(){ this.position = []; }
+    }
+
+    // simplistic fg
+    function drawFg() {
+        ctx.fillStyle = "#ded895";
+        ctx.fillRect(0, cvs.height - 112, cvs.width, 112);
+    }
+
+    function draw() {
+        ctx.fillStyle = "#70c5ce";
+        ctx.fillRect(0,0,cvs.width, cvs.height);
+        pipes.draw();
+        drawFg();
+        bird.draw();
+        score.draw();
+        if(state.current == state.getReady) {
+            ctx.fillStyle = "black"; ctx.font="30px Arial"; ctx.fillText("Click to Start", 70, 200);
+        }
+        if(state.current == state.over) {
+            ctx.fillStyle = "black"; ctx.font="40px Arial"; ctx.fillText("Game Over", 60, 150);
+            ctx.fillStyle = "white"; ctx.fillRect(startBtn.x, startBtn.y, startBtn.w, startBtn.h);
+            ctx.fillStyle = "black"; ctx.font="20px Arial"; ctx.fillText("RESTART", 125, 285);
+        }
+    }
+    function update() {
+        bird.update();
+        pipes.update();
+    }
+    function loop() {
+        update();
+        draw();
+        frames++;
+        requestAnimationFrame(loop);
+    }
+
+    async function submitScore(s) {
+        if(!userId) return;
+        try {
+            await fetch('/api/scores', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    game_key: gameKey || 'flappy',
+                    user_id: parseInt(userId),
+                    score: s
+                })
+            });
+        } catch(e) {}
+    }
+    loop();
+</script>
+</body>
+</html>
