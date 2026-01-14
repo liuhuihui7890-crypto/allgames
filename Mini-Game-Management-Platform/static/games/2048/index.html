@@ -33,6 +33,16 @@
         const userId = urlParams.get('uid');
         const gameKey = urlParams.get('gkey');
 
+        // 监听退出指令
+        window.addEventListener('message', async function(e) {
+            if(e.data === 'submit_and_exit') {
+                await submitScore();
+                window.parent.postMessage('score_submitted', '*');
+            }
+        });
+        
+        window.onload = function() { window.focus(); };
+
         function init() {
             grid = Array(size).fill().map(() => Array(size).fill(0));
             score = 0;

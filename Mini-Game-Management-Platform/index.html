@@ -69,8 +69,10 @@
                     <span class="text-3xl">{{ currentGame.icon }}</span>
                     <h2 class="text-xl font-bold text-gray-100">{{ currentGame.name }}</h2>
                 </div>
+                <!-- 退出游戏按钮 -->
                 <button @click="closeGame" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-bold transition shadow-lg flex items-center gap-2">
-                    <span>✕</span> 退出游戏
+                    <span v-if="isExiting" class="animate-spin">⌛</span>
+                    <span>{{ isExiting ? '正在保存...' : '✕ 退出游戏' }}</span>
                 </button>
             </div>
             <div class="flex-grow relative bg-gray-900 flex justify-center items-center overflow-hidden">
@@ -97,7 +99,7 @@
                         </button>
                     </div>
                 </div>
-                <iframe v-show="!showAd" :src="getGameUrl(currentGame)" class="game-iframe w-full h-full" allow="autoplay; fullscreen" title="Game Window"></iframe>
+                <iframe ref="gameIframe" v-show="!showAd" :src="getGameUrl(currentGame)" class="game-iframe w-full h-full" allow="autoplay; fullscreen" title="Game Window"></iframe>
             </div>
         </div>
 
@@ -177,7 +179,7 @@
     </div>
 
     <script>
-        const { createApp, ref, onMounted } = Vue;
+        const { createApp, ref, onMounted, onUnmounted } = Vue;
         createApp({
             setup() {
                 const user = ref(JSON.parse(localStorage.getItem('user')));
@@ -189,10 +191,12 @@
                 const currentGame = ref(null);
                 const showAd = ref(false);
                 const adCountdown = ref(5);
+                const gameIframe = ref(null); // Ref for iframe
+                const isExiting = ref(false); // State for exiting spinner
                 let adTimer = null;
 
                 const instructions = {
-                    'tetris': '⬅️ ➡️ 移动，Q/W 旋转，⬇️ 加速', // Updated instructions
+                    'tetris': '⬅️ ➡️ 移动，Q/W 旋转，⬇️ 加速', 
                     'pong': '🖱️ 上下移动鼠标控制挡板',
                     'breakout': '⬅️ ➡️ 方向键或鼠标移动挡板',
                     '2048': '⬆️ ⬇️ ⬅️ ➡️ 方向键移动方块',
@@ -241,6 +245,7 @@
                     if (!user.value) return alert("请先登录后再开始游戏！");
                     currentGame.value = game;
                     showAd.value = true;
+                    isExiting.value = false;
                     adCountdown.value = 5; 
                     if (adTimer) clearInterval(adTimer);
                     adTimer = setInterval(() => {
@@ -248,15 +253,49 @@
                         if (adCountdown.value <= 0) {
                             clearInterval(adTimer);
                             showAd.value = false; 
+                            // 广告结束，尝试让iframe聚焦
+                            setTimeout(() => {
+                                if(gameIframe.value) gameIframe.value.contentWindow.focus();
+                            }, 100);
                         }
                     }, 1000);
                 };
 
-                const closeGame = () => {
+                const performClose = () => {
                     currentGame.value = null;
                     showAd.value = false;
+                    isExiting.value = false;
                     if (adTimer) clearInterval(adTimer);
                 };
+
+                const closeGame = () => {
+                    if(showAd.value) { // 如果在广告阶段，直接退出
+                        performClose();
+                        return;
+                    }
+                    
+                    // 通知子游戏保存分数
+                    isExiting.value = true;
+                    if(gameIframe.value && gameIframe.value.contentWindow) {
+                        gameIframe.value.contentWindow.postMessage('submit_and_exit', '*');
+                        
+                        // 设置一个超时，防止子游戏没反应导致卡住
+                        setTimeout(() => {
+                            if(isExiting.value) performClose();
+                        }, 2000);
+                    } else {
+                        performClose();
+                    }
+                };
+
+                // 监听子游戏的消息
+                const messageHandler = (e) => {
+                    if(e.data === 'score_submitted') {
+                        performClose();
+                    }
+                };
+                
+                window.addEventListener('message', messageHandler);
 
                 const getGameUrl = (game) => {
                     if (!game || !user.value) return '';
@@ -304,7 +343,7 @@
 
                 return { 
                     user, games, board, showBoard, boardGameName, auth, 
-                    currentGame, showAd, adCountdown, getInstructions,
+                    currentGame, showAd, adCountdown, getInstructions, isExiting, gameIframe,
                     handleAuth, fetchLeaderboard, logout, openGame, closeGame, getGameUrl, isCurrentUser,
                     showProfileModal, userStats, openProfile, uploadAvatar, fileInput
                 }

@@ -3,8 +3,9 @@
 <head>
     <title>Breakout</title>
     <style>
+    /* 将背景改为黑色，以便看清蓝色的球和砖块 */
     body { background: #eee; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-    canvas { background: #0095DD; display: block; margin: 0 auto; }
+    canvas { background: #000; display: block; margin: 0 auto; border: 2px solid #333; }
     </style>
 </head>
 <body>
@@ -48,6 +49,19 @@
     document.addEventListener("keydown", keyDownHandler, false);
     document.addEventListener("keyup", keyUpHandler, false);
     document.addEventListener("mousemove", mouseMoveHandler, false);
+
+    // 监听父页面的退出指令
+    window.addEventListener('message', async function(e) {
+        if(e.data === 'submit_and_exit') {
+            await submitScore();
+            window.parent.postMessage('score_submitted', '*');
+        }
+    });
+
+    // 自动聚焦，确保键盘可用
+    window.onload = function() {
+        window.focus();
+    };
 
     function keyDownHandler(e) {
         if(e.code  == "ArrowRight") rightPressed = true;
