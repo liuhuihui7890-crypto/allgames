@@ -1,5 +1,5 @@
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +7,8 @@ from pydantic import BaseModel
 from passlib.context import CryptContext
 import mysql.connector
 import os
+import shutil
+import uuid
 
 app = FastAPI()
 
@@ -28,6 +30,9 @@ db_config = {
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# 确保头像目录存在
+os.makedirs("static/avatars", exist_ok=True)
+
 # 数据模型
 class UserAuth(BaseModel):
     username: str
@@ -47,13 +52,11 @@ async def read_index():
 async def register(user: UserAuth):
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
-    # 检查用户名是否已存在
     cursor.execute("SELECT id FROM minigame_users WHERE username = %s", (user.username,))
     if cursor.fetchone():
         raise HTTPException(status_code=400, detail="用户名已存在")
     
     hashed_password = pwd_context.hash(user.password)
-    # 默认头像
     default_avatar = "/static/avatars/default.png"
     
     insert_query = "INSERT INTO minigame_users (username, password_hash, avatar_url) VALUES (%s, %s, %s)"
@@ -91,7 +94,6 @@ async def submit_score(score_data: ScoreSubmit):
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor(dictionary=True)
 
-        # 1. 使用 user_id 查询用户名
         cursor.execute("SELECT username FROM minigame_users WHERE id = %s", (score_data.user_id,))
         user = cursor.fetchone()
         if not user:
@@ -99,7 +101,6 @@ async def submit_score(score_data: ScoreSubmit):
         
         player_name = user['username']
 
-        # 2. 将用户名和其他分数信息一起插入数据库
         insert_query = """
             INSERT INTO minigame_scores (game_key, user_id, score, player_name) 
             VALUES (%s, %s, %s, %s)
@@ -109,7 +110,6 @@ async def submit_score(score_data: ScoreSubmit):
         
         return {"message": "分数提交成功"}
     except mysql.connector.Error as err:
-        # 记录或打印更详细的错误
         print(f"数据库错误: {err}")
         raise HTTPException(status_code=500, detail=f"提交积分失败: {err}")
     finally:
@@ -134,5 +134,51 @@ async def get_leaderboard(game_key: str):
     cursor.close()
     conn.close()
     return res
+
+# --- 个人中心相关接口 ---
+
+@app.get("/api/user/stats/{user_id}")
+async def get_user_stats(user_id: int):
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor(dictionary=True)
+    # 获取用户所有游戏的最高分
+    query = """
+        SELECT s.game_key, g.name as game_name, MAX(s.score) as best_score
+        FROM minigame_scores s
+        JOIN minigame_list g ON s.game_key = g.game_key
+        WHERE s.user_id = %s
+        GROUP BY s.game_key, g.name
+    """
+    cursor.execute(query, (user_id,))
+    stats = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return stats
+
+@app.post("/api/user/avatar")
+async def upload_avatar(user_id: int = Form(...), file: UploadFile = File(...)):
+    # 验证文件类型
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="只能上传图片文件")
+    
+    # 生成文件名
+    file_ext = os.path.splitext(file.filename)[1]
+    filename = f"{user_id}_{uuid.uuid4().hex[:8]}{file_ext}"
+    file_path = f"static/avatars/{filename}"
+    
+    # 保存文件
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    # 更新数据库
+    avatar_url = f"/{file_path}"
+    conn = mysql.connector.connect(**db_config)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE minigame_users SET avatar_url = %s WHERE id = %s", (avatar_url, user_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
+    
+    return {"avatar_url": avatar_url}
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
