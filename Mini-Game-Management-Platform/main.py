@@ -47,16 +47,22 @@ async def read_index():
 async def register(user: UserAuth):
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
-    try:
-        hashed = pwd_context.hash(user.password)
-        cursor.execute("INSERT INTO minigame_users (username, password_hash) VALUES (%s, %s)", (user.username, hashed))
-        conn.commit()
-        return {"message": "注册成功"}
-    except:
+    # 检查用户名是否已存在
+    cursor.execute("SELECT id FROM minigame_users WHERE username = %s", (user.username,))
+    if cursor.fetchone():
         raise HTTPException(status_code=400, detail="用户名已存在")
-    finally:
-        cursor.close()
-        conn.close()
+    
+    hashed_password = pwd_context.hash(user.password)
+    # 默认头像
+    default_avatar = "/static/avatars/default.png"
+    
+    insert_query = "INSERT INTO minigame_users (username, password_hash, avatar_url) VALUES (%s, %s, %s)"
+    cursor.execute(insert_query, (user.username, hashed_password, default_avatar))
+    conn.commit()
+    user_id = cursor.lastrowid
+    cursor.close()
+    conn.close()
+    return {"id": user_id, "username": user.username, "avatar": default_avatar}
 
 @app.post("/api/login")
 async def login(user: UserAuth):
@@ -79,21 +85,37 @@ async def get_games():
     return games
 
 @app.post("/api/scores")
-async def submit_score(data: ScoreSubmit):
+async def submit_score(score_data: ScoreSubmit):
+    conn = None
     try:
         conn = mysql.connector.connect(**db_config)
-        cursor = conn.cursor()
-        print(f"Submitting score: {data}") # 添加日志
-        cursor.execute("INSERT INTO minigame_scores (game_key, user_id, score) VALUES (%s, %s, %s)",
-                       (data.game_key, data.user_id, data.score))
+        cursor = conn.cursor(dictionary=True)
+
+        # 1. 使用 user_id 查询用户名
+        cursor.execute("SELECT username FROM minigame_users WHERE id = %s", (score_data.user_id,))
+        user = cursor.fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="用户不存在")
+        
+        player_name = user['username']
+
+        # 2. 将用户名和其他分数信息一起插入数据库
+        insert_query = """
+            INSERT INTO minigame_scores (game_key, user_id, score, player_name) 
+            VALUES (%s, %s, %s, %s)
+        """
+        cursor.execute(insert_query, (score_data.game_key, score_data.user_id, score_data.score, player_name))
         conn.commit()
-        return {"status": "success"}
-    except Exception as e:
-        print(f"Error submitting score: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        
+        return {"message": "分数提交成功"}
+    except mysql.connector.Error as err:
+        # 记录或打印更详细的错误
+        print(f"数据库错误: {err}")
+        raise HTTPException(status_code=500, detail=f"提交积分失败: {err}")
     finally:
-        if 'cursor' in locals(): cursor.close()
-        if 'conn' in locals(): conn.close()
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
 
 @app.get("/api/scores/{game_key}")
 async def get_leaderboard(game_key: str):
@@ -114,6 +136,3 @@ async def get_leaderboard(game_key: str):
     return res
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
-
