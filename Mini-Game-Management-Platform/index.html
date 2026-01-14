@@ -5,46 +5,136 @@
     <title>Mini-Game HUB</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .game-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .ad-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 60;
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-white">
-    <div id="app" class="container mx-auto px-4 py-8">
-        <div class="flex justify-end mb-8 p-4 bg-gray-800 rounded-xl">
-            <div v-if="!user">
-                <input v-model="auth.username" placeholder="用户名" class="bg-gray-700 px-2 py-1 rounded mr-2">
-                <input v-model="auth.password" type="password" placeholder="密码" class="bg-gray-700 px-2 py-1 rounded mr-2">
-                <button @click="handleAuth('login')" class="bg-blue-600 px-4 py-1 rounded mr-2">登录</button>
-                <button @click="handleAuth('register')" class="bg-green-600 px-4 py-1 rounded">注册</button>
-            </div>
-            <div v-else class="flex items-center">
-                <img :src="user.avatar" class="w-8 h-8 rounded-full mr-2">
-                <span class="mr-4">你好, {{ user.username }}</span>
-                <button @click="logout" class="text-red-400">退出</button>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div v-for="game in games" :key="game.id" class="bg-gray-800 p-6 rounded-2xl border border-gray-700">
-                <div class="text-4xl mb-2">{{ game.icon }}</div>
-                <h3 class="text-xl font-bold">{{ game.name }}</h3>
-                <p class="text-gray-400 text-sm mb-4">{{ game.desc }}</p>
-                <a :href="game.url" class="block w-full bg-blue-600 text-center py-2 rounded-lg mb-2">开始游戏</a>
-                <button @click="fetchLeaderboard(game.id)" class="w-full text-blue-400 text-sm font-bold">🏆 排行榜</button>
-            </div>
-        </div>
-
-        <div v-if="showBoard" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50">
-            <div class="bg-gray-800 p-8 rounded-2xl w-80 border border-gray-600">
-                <h2 class="text-2xl font-bold mb-4">Top 10</h2>
-                <div v-if="board.length === 0" class="text-gray-400 mb-4 text-center">暂无数据</div>
-                <div v-for="(s, i) in board" :key="i" class="flex justify-between mb-2">
-                    <span class="flex items-center">
-                        <span class="mr-2">{{i+1}}.</span>
-                        <img :src="s.avatar_url || '/static/avatars/default.png'" class="w-6 h-6 rounded-full mr-2">
-                        <span>{{s.player_name}}</span>
-                    </span>
-                    <span class="text-blue-400 font-bold">{{s.score}}</span>
+<body class="bg-gray-900 text-white font-sans">
+    <div id="app" class="container mx-auto px-4 py-8 relative">
+        <!-- 顶部导航栏 -->
+        <nav class="flex justify-between items-center mb-8 p-4 bg-gray-800 rounded-xl shadow-lg">
+            <div class="text-2xl font-bold text-blue-500">🎮 GameHub</div>
+            <div class="flex items-center space-x-4">
+                <div v-if="!user" class="flex space-x-2">
+                    <input v-model="auth.username" placeholder="用户名" class="bg-gray-700 text-white px-3 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <input v-model="auth.password" type="password" placeholder="密码" class="bg-gray-700 text-white px-3 py-1.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <button @click="handleAuth('login')" class="bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-lg transition">登录</button>
+                    <button @click="handleAuth('register')" class="bg-green-600 hover:bg-green-700 px-4 py-1.5 rounded-lg transition">注册</button>
                 </div>
-                <button @click="showBoard=false" class="w-full mt-4 bg-gray-700 py-2 rounded">关闭</button>
+                <div v-else class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <img :src="user.avatar" class="w-8 h-8 rounded-full border border-gray-600">
+                        <span class="font-medium">{{ user.username }}</span>
+                    </div>
+                    <button @click="logout" class="text-gray-400 hover:text-red-400 transition">退出</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 游戏列表 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div v-for="game in games" :key="game.id" class="bg-gray-800 rounded-2xl overflow-hidden hover:shadow-2xl transition duration-300 border border-gray-700 flex flex-col">
+                <div class="p-6 flex-grow">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="text-5xl">{{ game.icon }}</div>
+                    </div>
+                    <h3 class="text-2xl font-bold mb-2">{{ game.name }}</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed mb-6">{{ game.desc }}</p>
+                </div>
+                <div class="p-6 pt-0 mt-auto grid grid-cols-2 gap-4">
+                    <button @click="openGame(game)" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-3 rounded-xl transition shadow-lg">
+                        ▶ 开始玩
+                    </button>
+                    <button @click="fetchLeaderboard(game.id)" class="bg-gray-700 hover:bg-gray-600 text-blue-400 font-bold py-3 rounded-xl transition">
+                        🏆 排行榜
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 游戏模态框 (包含广告层) -->
+        <div v-if="currentGame" class="fixed inset-0 bg-black z-50 flex flex-col">
+            <!-- 顶部控制栏 -->
+            <div class="bg-gray-900 p-4 flex justify-between items-center border-b border-gray-800">
+                <div class="flex items-center space-x-3">
+                    <span class="text-2xl">{{ currentGame.icon }}</span>
+                    <h2 class="text-xl font-bold">{{ currentGame.name }}</h2>
+                </div>
+                <button @click="closeGame" class="bg-red-600 hover:bg-red-700 px-6 py-2 rounded-lg font-bold transition">
+                    退出游戏
+                </button>
+            </div>
+
+            <!-- 游戏区域 -->
+            <div class="flex-grow relative bg-gray-900">
+                <!-- 广告遮罩层 -->
+                <div v-if="showAd" class="ad-overlay">
+                    <div class="bg-white text-gray-900 p-8 rounded-2xl max-w-md text-center shadow-2xl">
+                        <h3 class="text-2xl font-bold mb-4">✨ 精彩推荐 ✨</h3>
+                        <p class="text-gray-600 mb-6">这里是广告位。展示高品质游戏外设、最新游戏大作预告等。</p>
+                        <div class="text-6xl mb-6">🎮</div>
+                        <button class="bg-gray-300 text-gray-500 font-bold py-3 px-8 rounded-full cursor-not-allowed" disabled>
+                            广告剩余 {{ adCountdown }} 秒
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 游戏 Iframe -->
+                <!-- 注意：我们将 user_id 作为参数传递给 iframe，以便游戏内部知道是谁在玩 -->
+                <iframe 
+                    v-show="!showAd"
+                    :src="getGameUrl(currentGame)" 
+                    class="game-iframe"
+                    title="Game Window"
+                ></iframe>
+            </div>
+        </div>
+
+        <!-- 排行榜弹窗 -->
+        <div v-if="showBoard" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 backdrop-blur-sm">
+            <div class="bg-gray-800 p-8 rounded-2xl w-96 border border-gray-600 shadow-2xl transform transition-all scale-100">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-yellow-400">🏆 荣耀榜单</h2>
+                    <button @click="showBoard=false" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+                </div>
+                
+                <div v-if="board.length === 0" class="text-gray-400 py-8 text-center bg-gray-700/50 rounded-lg">
+                    暂无数据，快来抢占第一名！
+                </div>
+                
+                <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                    <div v-for="(s, i) in board" :key="i" 
+                         class="flex justify-between items-center p-3 rounded-lg"
+                         :class="{'bg-yellow-500/20 border border-yellow-500/30': i===0, 'bg-gray-700/50': i>0}">
+                        <div class="flex items-center">
+                            <span class="w-8 font-bold text-lg" :class="{'text-yellow-400': i===0, 'text-gray-400': i>0}">#{{i+1}}</span>
+                            <img :src="s.avatar_url || '/static/avatars/default.png'" class="w-8 h-8 rounded-full mr-3 border border-gray-600">
+                            <span class="font-medium text-gray-200">{{s.player_name}}</span>
+                        </div>
+                        <span class="font-mono font-bold text-blue-400">{{s.score}}</span>
+                    </div>
+                </div>
+                
+                <button @click="showBoard=false" class="w-full mt-6 bg-gray-700 hover:bg-gray-600 py-3 rounded-xl font-bold transition">
+                    关闭
+                </button>
             </div>
         </div>
     </div>
@@ -59,35 +149,102 @@
                 const showBoard = ref(false);
                 const auth = ref({username: '', password: ''});
 
+                // 新增状态
+                const currentGame = ref(null);
+                const showAd = ref(false);
+                const adCountdown = ref(5);
+                let adTimer = null;
+
                 const handleAuth = async (type) => {
-                    const res = await fetch(`/api/${type}`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify(auth.value)
-                    });
-                    const data = await res.json();
-                    if(res.ok) {
-                        if(type === 'login') {
-                            user.value = data;
-                            localStorage.setItem('user', JSON.stringify(data));
-                        } else alert("注册成功，请登录");
-                    } else alert(data.detail);
+                    if (!auth.value.username || !auth.value.password) return alert("请输入用户名和密码");
+                    try {
+                        const res = await fetch(`/api/${type}`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify(auth.value)
+                        });
+                        const data = await res.json();
+                        if(res.ok) {
+                            if(type === 'login') {
+                                user.value = data;
+                                localStorage.setItem('user', JSON.stringify(data));
+                            } else {
+                                alert("注册成功，请登录");
+                                auth.value.password = ''; // 清空密码方便登录
+                            }
+                        } else alert(data.detail || "操作失败");
+                    } catch (e) {
+                        alert("网络错误");
+                    }
                 };
 
                 const fetchLeaderboard = async (id) => {
-                    const res = await fetch(`/api/scores/${id}`);
-                    board.value = await res.json();
-                    showBoard.value = true;
+                    try {
+                        const res = await fetch(`/api/scores/${id}`);
+                        board.value = await res.json();
+                        showBoard.value = true;
+                    } catch (e) {
+                        console.error(e);
+                    }
                 };
 
-                const logout = () => { user.value = null; localStorage.removeItem('user'); };
+                const logout = () => { 
+                    user.value = null; 
+                    localStorage.removeItem('user'); 
+                };
+
+                // 打开游戏并显示广告
+                const openGame = (game) => {
+                    if (!user.value) {
+                        alert("请先登录后再开始游戏！");
+                        return;
+                    }
+                    currentGame.value = game;
+                    showAd.value = true;
+                    adCountdown.value = 5; // 广告时长 5 秒
+
+                    // 启动倒计时
+                    if (adTimer) clearInterval(adTimer);
+                    adTimer = setInterval(() => {
+                        adCountdown.value--;
+                        if (adCountdown.value <= 0) {
+                            clearInterval(adTimer);
+                            showAd.value = false; // 广告结束，显示游戏
+                        }
+                    }, 1000);
+                };
+
+                // 关闭游戏
+                const closeGame = () => {
+                    currentGame.value = null;
+                    showAd.value = false;
+                    if (adTimer) clearInterval(adTimer);
+                    // 刷新页面或重新加载数据可能不是必须的，但可以清空一些状态
+                };
+
+                // 生成带有用户ID的游戏URL，以便游戏内部使用
+                const getGameUrl = (game) => {
+                    if (!game || !user.value) return '';
+                    // 假设游戏 URL 可能是 /static/games/snake/index.html
+                    // 我们附加 query 参数
+                    const separator = game.url.includes('?') ? '&' : '?';
+                    return `${game.url}${separator}uid=${user.value.id}&gkey=${game.id}`;
+                };
 
                 onMounted(async () => {
-                    const res = await fetch('/api/games');
-                    games.value = await res.json();
+                    try {
+                        const res = await fetch('/api/games');
+                        games.value = await res.json();
+                    } catch (e) {
+                        console.error("无法加载游戏列表", e);
+                    }
                 });
 
-                return { user, games, board, showBoard, auth, handleAuth, fetchLeaderboard, logout }
+                return { 
+                    user, games, board, showBoard, auth, 
+                    currentGame, showAd, adCountdown,
+                    handleAuth, fetchLeaderboard, logout, openGame, closeGame, getGameUrl 
+                }
             }
         }).mount('#app')
     </script>
