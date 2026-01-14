@@ -6,11 +6,9 @@
 
   # Use https://search.nixos.org/packages to find packages
   packages = [
-    # pkgs.go
-    # pkgs.python311
-    # pkgs.python311Packages.pip
-    # pkgs.nodejs_20
-    # pkgs.nodePackages.nodemon
+    pkgs.python311
+    pkgs.python311Packages.pip
+    pkgs.mariadb # Client tools for MySQL
   ];
 
   # Sets environment variables in the workspace
@@ -18,23 +16,21 @@
   idx = {
     # Search for the extensions you want on https://open-vsx.org/ and use "publisher.id"
     extensions = [
-      # "vscodevim.vim"
+      "ms-python.python"
     ];
 
     # Enable previews
     previews = {
       enable = true;
       previews = {
-        # web = {
-        #   # Example: run "npm run dev" with PORT set to IDX's defined port for previews,
-        #   # and show it in IDX's web preview panel
-        #   command = ["npm" "run" "dev"];
-        #   manager = "web";
-        #   env = {
-        #     # Environment variables to set for your server
-        #     PORT = "$PORT";
-        #   };
-        # };
+        web = {
+          command = ["uvicorn" "main:app" "--host" "0.0.0.0" "--port" "$PORT" "--reload"];
+          manager = "web";
+          cwd = "Mini-Game-Management-Platform";
+          env = {
+            PORT = "$PORT";
+          };
+        };
       };
     };
 
@@ -42,14 +38,19 @@
     workspace = {
       # Runs when a workspace is first created
       onCreate = {
-        # Example: install JS dependencies from NPM
-        # npm-install = "npm install";
+        install-dependencies = "python -m pip install -r Mini-Game-Management-Platform/requirements.txt";
       };
       # Runs when the workspace is (re)started
       onStart = {
-        # Example: start a background task to watch and re-build backend code
-        # watch-backend = "npm run watch-backend";
+        # Ensure database is running and initialized (simple check)
+        # We might need a script to init DB if not exists
       };
     };
+  };
+  
+  services.mysql = {
+    enable = true;
+    package = pkgs.mariadb;
+    # Initial setup if needed, though usually handled via valid SQL init scripts or manually
   };
 }
