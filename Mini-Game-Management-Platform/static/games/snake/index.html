@@ -6,7 +6,9 @@
     <style>
         body { background: #1a202c; color: white; text-align: center; font-family: sans-serif; }
         canvas { border: 5px solid #2d3748; background: #000; margin-top: 20px; }
-        #over { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #2d3748; p: 20px; border-radius: 10px; border: 2px solid #4299e1; padding: 20px; }
+        #over { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #2d3748; padding: 20px; border-radius: 10px; border: 2px solid #4299e1; z-index: 10; }
+        button { background: #4299e1; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 10px; font-weight: bold; }
+        button:hover { background: #3182ce; }
     </style>
 </head>
 <body>
@@ -14,12 +16,17 @@
     <canvas id="gc" width="400" height="400"></canvas>
     <div id="over">
         <h2>Game Over! Score: <span id="final">0</span></h2>
-        <button onclick="submit()" style="padding:10px; cursor:pointer;">提交并返回大厅</button>
+        <button onclick="submitAndRestart()">提交分数并重来</button>
     </div>
 
     <script>
         const ctx = document.getElementById('gc').getContext('2d');
         let snake = [{x:10, y:10}], food = {x:15, y:15}, dx=0, dy=0, score=0, active=true;
+        
+        // 获取 URL 参数
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('uid');
+        const gameKey = urlParams.get('gkey') || 'snake';
 
         function game() {
             if(!active) return;
@@ -37,31 +44,43 @@
             ctx.fillStyle='black'; ctx.fillRect(0,0,400,400);
             ctx.fillStyle='lime'; snake.forEach(p=>ctx.fillRect(p.x*20,p.y*20,18,18));
             ctx.fillStyle='red'; ctx.fillRect(food.x*20,food.y*20,18,18);
-            setTimeout(game, 250); // 将100ms改为250ms，减慢速度
+            setTimeout(game, 200); 
         }
 
-        async function submit() {
-            const user = JSON.parse(localStorage.getItem('user'));
-            if(!user) return alert("请先登录！"), window.location.href='/';
-            try {
-                const response = await fetch('/api/scores', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({game_key:'snake', user_id: user.id, score: score})
-                });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    alert("提交积分失败: " + (errorData.detail || "未知错误"));
-                } else {
-                    window.location.href='/';
+        async function submitAndRestart() {
+            if(userId) {
+                try {
+                    await fetch('/api/scores', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            game_key: gameKey, 
+                            user_id: parseInt(userId), 
+                            score: score
+                        })
+                    });
+                    alert("分数提交成功！");
+                } catch (err) {
+                    console.error(err);
+                    alert("提交失败");
                 }
-            } catch (err) {
-                alert("网络错误，提交积分失败");
-                console.error(err);
+            } else {
+                alert("未登录，无法提交分数");
             }
+            
+            // 重置游戏
+            snake = [{x:10, y:10}];
+            food = {x:15, y:15};
+            dx=0; dy=0; score=0; active=true;
+            document.getElementById('over').style.display='none';
+            game();
         }
 
         window.onkeydown = e => {
+            // 防止按键滚动页面
+            if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) {
+                e.preventDefault();
+            }
             if(e.key==='ArrowUp'&&dy!==1){dx=0;dy=-1}
             if(e.key==='ArrowDown'&&dy!==-1){dx=0;dy=1}
             if(e.key==='ArrowLeft'&&dx!==1){dx=-1;dy=0}
