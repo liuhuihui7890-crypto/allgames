@@ -76,14 +76,24 @@
             <div class="flex-grow relative bg-gray-900 flex justify-center items-center overflow-hidden">
                 <div v-if="showAd" class="ad-overlay">
                     <div class="bg-white text-gray-900 p-10 rounded-3xl max-w-md text-center shadow-2xl transform scale-100 transition-all">
-                        <h3 class="text-3xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-pink-600">✨ 精彩推荐 ✨</h3>
-                        <p class="text-gray-500 mb-8 text-sm uppercase tracking-widest font-semibold">ADVERTISEMENT</p>
-                        <div class="mb-8 p-6 bg-gray-100 rounded-xl animate-pulse">
-                            <div class="text-6xl mb-4">🎧</div>
-                            <p class="font-bold text-lg">沉浸式游戏耳机</p>
+                        <div class="mb-8">
+                            <h3 class="text-2xl font-bold mb-1 text-gray-800">🎮 操作说明</h3>
+                            <div class="w-16 h-1 bg-blue-500 mx-auto rounded-full mb-4"></div>
+                            <p class="text-xl font-medium text-gray-600 bg-gray-100 py-3 px-6 rounded-lg inline-block shadow-inner">
+                                {{ getInstructions(currentGame.id) }}
+                            </p>
                         </div>
-                        <button class="w-full bg-gray-200 text-gray-500 font-bold py-3 px-8 rounded-full cursor-not-allowed transition-colors" disabled>
-                            广告剩余 {{ adCountdown }} 秒
+                        
+                        <div class="border-t border-gray-200 pt-6">
+                            <h4 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Advertisement</h4>
+                            <div class="p-4 bg-gradient-to-r from-purple-100 to-pink-100 rounded-xl mb-6">
+                                <div class="text-4xl mb-2">🎧</div>
+                                <p class="font-bold text-gray-700">超沉浸游戏耳机</p>
+                            </div>
+                        </div>
+
+                        <button class="w-full bg-gray-800 text-white font-bold py-3 px-8 rounded-full cursor-not-allowed transition-colors shadow-lg" disabled>
+                            游戏加载中... {{ adCountdown }}s
                         </button>
                     </div>
                 </div>
@@ -181,10 +191,14 @@
                 const adCountdown = ref(5);
                 let adTimer = null;
 
-                // 个人中心状态
-                const showProfileModal = ref(false);
-                const userStats = ref([]);
-                const fileInput = ref(null);
+                const instructions = {
+                    'tetris': '⬅️ ➡️ 移动，⬆️ 旋转，⬇️ 加速',
+                    'pong': '🖱️ 上下移动鼠标控制挡板',
+                    'breakout': '⬅️ ➡️ 方向键或鼠标移动挡板',
+                    '2048': '⬆️ ⬇️ ⬅️ ➡️ 方向键移动方块',
+                    'flappy': '🖱️ 点击鼠标或屏幕跳跃',
+                    'snake': '⬆️ ⬇️ ⬅️ ➡️ 方向键控制移动'
+                };
 
                 const handleAuth = async (type) => {
                     if (!auth.value.username || !auth.value.password) return alert("请输入用户名和密码");
@@ -220,8 +234,8 @@
                 };
                 
                 const isCurrentUser = (name) => user.value && user.value.username === name;
-
                 const logout = () => { user.value = null; localStorage.removeItem('user'); };
+                const getInstructions = (id) => instructions[id] || '祝你好运！';
 
                 const openGame = (game) => {
                     if (!user.value) return alert("请先登录后再开始游戏！");
@@ -251,6 +265,10 @@
                 };
 
                 // --- 个人中心逻辑 ---
+                const showProfileModal = ref(false);
+                const userStats = ref([]);
+                const fileInput = ref(null);
+
                 const openProfile = async () => {
                     if(!user.value) return;
                     showProfileModal.value = true;
@@ -263,27 +281,18 @@
                 const uploadAvatar = async (event) => {
                     const file = event.target.files[0];
                     if(!file) return;
-                    
                     const formData = new FormData();
                     formData.append('user_id', user.value.id);
                     formData.append('file', file);
-
                     try {
-                        const res = await fetch('/api/user/avatar', {
-                            method: 'POST',
-                            body: formData
-                        });
+                        const res = await fetch('/api/user/avatar', { method: 'POST', body: formData });
                         const data = await res.json();
                         if(res.ok) {
                             user.value.avatar = data.avatar_url;
                             localStorage.setItem('user', JSON.stringify(user.value));
                             alert("头像更新成功");
-                        } else {
-                            alert("上传失败: " + data.detail);
-                        }
-                    } catch (e) {
-                        alert("网络错误");
-                    }
+                        } else { alert("上传失败: " + data.detail); }
+                    } catch (e) { alert("网络错误"); }
                 };
 
                 onMounted(async () => {
@@ -295,9 +304,8 @@
 
                 return { 
                     user, games, board, showBoard, boardGameName, auth, 
-                    currentGame, showAd, adCountdown,
+                    currentGame, showAd, adCountdown, getInstructions,
                     handleAuth, fetchLeaderboard, logout, openGame, closeGame, getGameUrl, isCurrentUser,
-                    // 个人中心
                     showProfileModal, userStats, openProfile, uploadAvatar, fileInput
                 }
             }
