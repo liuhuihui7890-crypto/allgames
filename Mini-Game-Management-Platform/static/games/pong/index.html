@@ -13,7 +13,7 @@
     </style>
 </head>
 <body>
-    <div id="msg">Mouse to move | Score: 0</div>
+    <div id="msg">Mouse or Arrow Keys to move | Score: 0</div>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -27,6 +27,9 @@
         const PADDLE_THICKNESS = 15;
         const PADDLE_HEIGHT = 100;
         let score = 0;
+        
+        // Keyboard state
+        const keys = {};
 
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('uid');
@@ -42,10 +45,18 @@
 
         window.onload = function() {
             requestAnimationFrame(gameLoop);
+            
+            // Mouse control
             canvas.addEventListener('mousemove', function(evt) {
                 const mousePos = calculateMousePos(evt);
                 paddle1Y = mousePos.y - (PADDLE_HEIGHT/2);
             });
+            
+            // Keyboard control (for Mobile/Desktop)
+            document.addEventListener('keydown', e => { keys[e.key] = true; });
+            document.addEventListener('keyup', e => { keys[e.key] = false; });
+            // Focus for keyboard events
+            window.focus();
         }
 
         function gameLoop() {
@@ -62,6 +73,15 @@
 
         function moveEverything() {
             computerMovement();
+            
+            // Apply keyboard movement
+            if (keys['ArrowUp']) paddle1Y -= 10;
+            if (keys['ArrowDown']) paddle1Y += 10;
+            
+            // Clamp paddle position
+            if (paddle1Y < 0) paddle1Y = 0;
+            if (paddle1Y > canvas.height - PADDLE_HEIGHT) paddle1Y = canvas.height - PADDLE_HEIGHT;
+
             ballX += ballSpeedX;
             ballY += ballSpeedY;
             
@@ -73,13 +93,12 @@
                     const deltaY = ballY - (paddle1Y+PADDLE_HEIGHT/2);
                     ballSpeedY = deltaY * 0.35;
                     score++;
-                    document.getElementById('msg').innerText = "Mouse to move | Score: " + score;
-                    // Hit effect?
+                    document.getElementById('msg').innerText = "Score: " + score;
                 } else if(ballX < 0) {
                     submitScore();
                     score = 0;
                     ballReset();
-                    document.getElementById('msg').innerText = "Mouse to move | Score: " + score;
+                    document.getElementById('msg').innerText = "Score: " + score;
                 }
             }
             
@@ -100,10 +119,8 @@
         }
 
         function drawEverything() {
-            // background
             colorRect(0,0,canvas.width,canvas.height,'#000');
             
-            // Net (Dotted line)
             canvasContext.strokeStyle = '#333';
             canvasContext.setLineDash([10, 15]);
             canvasContext.beginPath();
@@ -112,18 +129,13 @@
             canvasContext.stroke();
             canvasContext.setLineDash([]);
 
-            // Glow effect
             canvasContext.shadowBlur = 15;
             canvasContext.shadowColor = "white";
 
-            // left player paddle
             colorRect(0,paddle1Y,PADDLE_THICKNESS,PADDLE_HEIGHT,'white');
-            // right computer paddle
             colorRect(canvas.width-PADDLE_THICKNESS,paddle2Y,PADDLE_THICKNESS,PADDLE_HEIGHT,'white');
-            // ball
             colorCircle(ballX,ballY,8,'white');
             
-            // Reset glow
             canvasContext.shadowBlur = 0;
         }
 

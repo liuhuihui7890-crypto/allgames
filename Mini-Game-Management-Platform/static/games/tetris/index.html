@@ -102,21 +102,14 @@
             matrix.forEach((row, y) => {
                 row.forEach((value, x) => {
                     if (value !== 0) {
-                        // Base color
                         context.fillStyle = colors[value];
                         context.fillRect(x + offset.x, y + offset.y, 1, 1);
-                        
-                        // Bevel effect (Highlight top-left)
                         context.fillStyle = 'rgba(255,255,255,0.4)';
                         context.fillRect(x + offset.x, y + offset.y, 1, 0.1);
                         context.fillRect(x + offset.x, y + offset.y, 0.1, 1);
-                        
-                        // Bevel effect (Shadow bottom-right)
                         context.fillStyle = 'rgba(0,0,0,0.4)';
                         context.fillRect(x + offset.x + 0.9, y + offset.y, 0.1, 1);
                         context.fillRect(x + offset.x, y + offset.y + 0.9, 1, 0.1);
-                        
-                        // Inner square for detail
                         context.fillStyle = 'rgba(0,0,0,0.1)';
                         context.fillRect(x + offset.x + 0.2, y + offset.y + 0.2, 0.6, 0.6);
                     }
@@ -230,15 +223,19 @@
         const player = { pos: {x: 0, y: 0}, matrix: null, score: 0 };
 
         document.addEventListener('keydown', event => {
-            if([37, 38, 39, 40].indexOf(event.keyCode) > -1) {
+            // Use event.key which is standard and sent by our mobile controller
+            const k = event.key;
+            
+            // Prevent scrolling
+            if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(k)) {
                 event.preventDefault();
             }
 
-            if (event.keyCode === 37) playerMove(-1); 
-            else if (event.keyCode === 39) playerMove(1); 
-            else if (event.keyCode === 40) playerDrop(); 
-            else if (event.keyCode === 81) playerRotate(-1); // Q
-            else if (event.keyCode === 87) playerRotate(1);  // W
+            if (k === 'ArrowLeft') playerMove(-1); 
+            else if (k === 'ArrowRight') playerMove(1); 
+            else if (k === 'ArrowDown') playerDrop(); 
+            else if (k === 'q' || k === 'Q') playerRotate(-1);
+            else if (k === 'w' || k === 'W') playerRotate(1);
         });
 
         playerReset();

@@ -7,11 +7,9 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 禁止长按选中文本 */
         body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; background-color: #1a202c; color: white; }
         .game-iframe { width: 100%; height: 100%; border: none; }
         
-        /* 虚拟手柄样式 */
         .dpad-btn {
             width: 60px; height: 60px;
             background: rgba(255, 255, 255, 0.15);
@@ -31,21 +29,19 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
             touch-action: manipulation;
         }
-        .btn-a { background: #48bb78; border: 2px solid #2f855a; } /* Green */
-        .btn-b { background: #f56565; border: 2px solid #c53030; } /* Red */
+        .btn-a { background: #48bb78; border: 2px solid #2f855a; } 
+        .btn-b { background: #f56565; border: 2px solid #c53030; } 
         .btn-a:active { background: #38a169; transform: scale(0.95); }
         .btn-b:active { background: #e53e3e; transform: scale(0.95); }
 
         .modal-enter-active, .modal-leave-active { transition: opacity 0.3s ease; }
         .modal-enter-from, .modal-leave-to { opacity: 0; }
-        
-        /* 隐藏滚动条 */
         ::-webkit-scrollbar { width: 0px; background: transparent; }
     </style>
 </head>
 <body class="font-sans h-screen flex flex-col overflow-hidden">
     <div id="app" class="flex flex-col h-full">
-        <!-- 顶部导航 -->
+        <!-- Nav -->
         <nav class="flex justify-between items-center p-3 bg-gray-800 shadow-md z-10">
             <div class="text-xl font-bold text-blue-500">🎮 Hub</div>
             <div class="flex items-center space-x-2">
@@ -58,7 +54,7 @@
             </div>
         </nav>
 
-        <!-- 游戏列表区域 -->
+        <!-- Games List -->
         <div class="flex-grow overflow-y-auto p-4 space-y-4 pb-20">
             <div v-for="game in games" :key="game.id" class="bg-gray-800 rounded-xl p-4 flex items-center space-x-4 shadow-lg border border-gray-700" @click="openGame(game)">
                 <div class="text-4xl bg-gray-700 rounded-lg p-2">{{ game.icon }}</div>
@@ -70,7 +66,7 @@
             </div>
         </div>
 
-        <!-- 登录弹窗 -->
+        <!-- Login Modal -->
         <div v-if="showLogin" class="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-6">
             <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-600">
                 <h2 class="text-2xl font-bold mb-4">登录 / 注册</h2>
@@ -84,7 +80,7 @@
             </div>
         </div>
 
-        <!-- 个人中心弹窗 -->
+        <!-- Profile Modal -->
         <div v-if="showProfile" class="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-6">
             <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-600 max-h-[80vh] overflow-y-auto">
                 <div class="flex justify-between items-center mb-6">
@@ -113,23 +109,20 @@
             </div>
         </div>
 
-        <!-- 全屏游戏容器 -->
+        <!-- Game Container -->
         <div v-if="currentGame" class="fixed inset-0 bg-black z-40 flex flex-col">
-            <!-- 顶部栏 -->
             <div class="h-12 bg-gray-900 flex justify-between items-center px-4 border-b border-gray-800">
                 <span class="font-bold text-gray-300">{{ currentGame.name }}</span>
                 <button @click="closeGame" class="text-red-500 font-bold border border-red-500 px-3 py-0.5 rounded text-sm">退出</button>
             </div>
 
-            <!-- 游戏区域 (自适应剩余空间) -->
             <div class="flex-grow relative bg-black flex items-center justify-center overflow-hidden">
                 <iframe ref="gameIframe" :src="getGameUrl(currentGame)" class="game-iframe" scrolling="no"></iframe>
             </div>
 
-            <!-- 虚拟控制器 (底部) -->
-            <!-- 只有非触屏游戏才显示控制器 -->
-            <div v-if="needsController(currentGame.id)" class="h-48 bg-gray-900 border-t border-gray-700 relative flex-shrink-0">
-                <!-- D-Pad (Left) -->
+            <!-- Virtual Controller -->
+            <div v-if="needsController(currentGame.id)" class="h-48 bg-gray-900 border-t border-gray-700 relative flex-shrink-0 select-none">
+                <!-- D-Pad -->
                 <div class="absolute left-6 top-1/2 transform -translate-y-1/2 w-40 h-40">
                     <div class="relative w-full h-full">
                         <div @touchstart.prevent="pressKey('ArrowUp')" @touchend.prevent="releaseKey('ArrowUp')" class="dpad-btn absolute top-0 left-1/2 transform -translate-x-1/2">⬆️</div>
@@ -139,11 +132,9 @@
                     </div>
                 </div>
 
-                <!-- Action Buttons (Right) -->
+                <!-- Action Buttons -->
                 <div class="absolute right-8 top-1/2 transform -translate-y-1/2 flex gap-4">
-                    <!-- B Button (Cancel/Rotate2) -->
                     <div @touchstart.prevent="pressKey(btnBKey)" @touchend.prevent="releaseKey(btnBKey)" class="action-btn btn-b mt-8">B</div>
-                    <!-- A Button (Confirm/Fire/Jump) -->
                     <div @touchstart.prevent="pressKey(btnAKey)" @touchend.prevent="releaseKey(btnAKey)" class="action-btn btn-a -mt-4">A</div>
                 </div>
             </div>
@@ -164,17 +155,15 @@
                 const currentGame = ref(null);
                 const gameIframe = ref(null);
 
-                // 定义哪些游戏需要虚拟手柄，以及对应的 A/B 键映射
                 const controllerConfig = {
-                    'tetris':   { needs: true,  a: 'w', b: 'q' }, // W=Rotate, Q=RotateBack
-                    'snake':    { needs: true,  a: ' ', b: ' ' }, // Snake only needs arrows usually
-                    'tank':     { needs: true,  a: 'Space', b: 'Space' }, // Space fire
-                    'raiden':   { needs: true,  a: 'Space', b: 'Space' }, // Space fire
+                    'tetris':   { needs: true,  a: 'w', b: 'q' }, 
+                    'snake':    { needs: true,  a: ' ', b: ' ' }, 
+                    'tank':     { needs: true,  a: 'Space', b: 'Space' },
+                    'raiden':   { needs: true,  a: 'Space', b: 'Space' },
                     'breakout': { needs: true,  a: ' ', b: ' ' },
-                    'pong':     { needs: true,  a: ' ', b: ' ' }, // Mouse usually, but we might need keys
+                    'pong':     { needs: true,  a: ' ', b: ' ' },
                     '2048':     { needs: true,  a: ' ', b: ' ' },
                     'maze':     { needs: true,  a: ' ', b: ' ' },
-                    // Touch games (no controller needed)
                     'flappy':   { needs: false },
                     'mole':     { needs: false },
                     'gomoku':   { needs: false },
@@ -183,34 +172,37 @@
 
                 const needsController = (id) => controllerConfig[id]?.needs || false;
                 
-                // 计算当前游戏的 A/B 键对应的 KeyCode
                 const btnAKey = computed(() => currentGame.value ? (controllerConfig[currentGame.value.id]?.a || 'Space') : 'Space');
                 const btnBKey = computed(() => currentGame.value ? (controllerConfig[currentGame.value.id]?.b || 'Escape') : 'Escape');
 
-                // 模拟按键事件发送给 iframe
+                // Improved Event Triggering
                 const triggerEvent = (type, key) => {
                     if(!gameIframe.value || !gameIframe.value.contentWindow) return;
                     
-                    // 映射 'w', 'q', 'Space' 等到标准 code
-                    let code = key;
-                    if(key === 'w') code = 'KeyW';
-                    if(key === 'q') code = 'KeyQ';
-                    
-                    // 构造 KeyboardEvent
+                    const codeMap = {
+                        'ArrowUp': 38, 'ArrowDown': 40, 'ArrowLeft': 37, 'ArrowRight': 39,
+                        'Space': 32, 'w': 87, 'q': 81
+                    };
+                    const code = key === ' ' ? 'Space' : key;
+                    const keyCode = codeMap[key] || 0;
+
                     const ev = new KeyboardEvent(type, {
                         key: key,
                         code: code,
+                        keyCode: keyCode, // Legacy support
+                        which: keyCode,   // Legacy support
                         bubbles: true,
                         cancelable: true,
-                        view: window
+                        view: gameIframe.value.contentWindow
                     });
-                    gameIframe.value.contentWindow.dispatchEvent(ev);
+                    
+                    // Direct dispatch to iframe document
+                    gameIframe.value.contentDocument.dispatchEvent(ev);
                 };
 
                 const pressKey = (key) => triggerEvent('keydown', key);
                 const releaseKey = (key) => triggerEvent('keyup', key);
 
-                // --- Auth ---
                 const handleAuth = async (type) => {
                     if (!auth.value.username || !auth.value.password) return alert("请输入用户名和密码");
                     try {
@@ -235,17 +227,14 @@
 
                 const logout = () => { user.value = null; localStorage.removeItem('user'); showProfile.value = false; };
 
-                // --- Game Logic ---
                 const openGame = (game) => {
                     if (!user.value) { showLogin.value = true; return; }
                     currentGame.value = game;
                 };
 
                 const closeGame = () => {
-                    // 移动端简化：直接通知保存并退出，或者直接关闭
                     if(gameIframe.value && gameIframe.value.contentWindow) {
                         gameIframe.value.contentWindow.postMessage('submit_and_exit', '*');
-                        // 稍微延迟关闭以允许发送请求
                         setTimeout(() => { currentGame.value = null; }, 500);
                     } else {
                         currentGame.value = null;
@@ -258,7 +247,6 @@
                     return `${game.url}${separator}uid=${user.value.id}&gkey=${game.id}`;
                 };
 
-                // --- Profile ---
                 const openProfile = async () => {
                     showProfile.value = true;
                     try {
