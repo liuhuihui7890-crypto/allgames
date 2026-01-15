@@ -57,6 +57,10 @@ class ScoreSubmit(BaseModel):
 async def read_index():
     return FileResponse('index.html')
 
+@app.get("/mobile")
+async def read_mobile():
+    return FileResponse('mobile.html')
+
 @app.post("/api/register")
 async def register(user: UserAuth):
     conn = mysql.connector.connect(**db_config)
