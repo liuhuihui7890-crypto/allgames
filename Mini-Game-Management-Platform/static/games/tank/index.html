@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tank Battle</title>
+    <style>
+        body { background: #333; color: #fff; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        canvas { background: #000; border: 2px solid #555; }
+        #msg { margin-bottom: 10px; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <div id="msg">Arrow Keys to Move, Space to Shoot</div>
+    <canvas id="gameCanvas" width="500" height="500"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const size = 25;
+        let score = 0;
+        let gameOver = false;
+
+        const player = { x: 9*size, y: 18*size, dir: 0, cooldown: 0 }; // 0:Up, 1:Right, 2:Down, 3:Left
+        let bullets = [];
+        let enemies = [];
+        let frame = 0;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('uid');
+        const gameKey = urlParams.get('gkey') || 'tank';
+
+        window.addEventListener('message', async function(e) {
+            if(e.data === 'submit_and_exit') {
+                await submitScore();
+                window.parent.postMessage('score_submitted', '*');
+            }
+        });
+        window.onload = function() { window.focus(); };
+
+        const keys = {};
+        window.addEventListener('keydown', e => { keys[e.code] = true; if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault(); });
+        window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+        function spawnEnemy() {
+            const x = Math.floor(Math.random() * (canvas.width/size)) * size;
+            enemies.push({ x: x, y: 0, dir: 2, moveTimer: 0 });
+        }
+
+        function update() {
+            if(gameOver) return;
+            frame++;
+
+            // Player Move
+            let moved = false;
+            if (keys['ArrowUp']) { player.y -= 2; player.dir = 0; moved=true; }
+            else if (keys['ArrowDown']) { player.y += 2; player.dir = 2; moved=true; }
+            else if (keys['ArrowLeft']) { player.x -= 2; player.dir = 3; moved=true; }
+            else if (keys['ArrowRight']) { player.x += 2; player.dir = 1; moved=true; }
+            
+            // Constrain
+            player.x = Math.max(0, Math.min(canvas.width - size, player.x));
+            player.y = Math.max(0, Math.min(canvas.height - size, player.y));
+
+            // Shoot
+            if (player.cooldown > 0) player.cooldown--;
+            if (keys['Space'] && player.cooldown <= 0) {
+                let bx = player.x + size/2;
+                let by = player.y + size/2;
+                let bdx=0, bdy=0;
+                if(player.dir===0) bdy = -5;
+                if(player.dir===1) bdx = 5;
+                if(player.dir===2) bdy = 5;
+                if(player.dir===3) bdx = -5;
+                bullets.push({x: bx, y: by, dx: bdx, dy: bdy, owner: 'p'});
+                player.cooldown = 20;
+            }
+
+            // Enemies
+            if(frame % 120 === 0) spawnEnemy();
+            enemies.forEach((e, i) => {
+                if(frame % 5 === 0) {
+                    // Simple AI
+                    if(Math.random() < 0.05) e.dir = Math.floor(Math.random()*4);
+                    if(e.dir===0) e.y-=2;
+                    if(e.dir===1) e.x+=2;
+                    if(e.dir===2) e.y+=2;
+                    if(e.dir===3) e.x-=2;
+                    e.x = Math.max(0, Math.min(canvas.width - size, e.x));
+                    e.y = Math.max(0, Math.min(canvas.height - size, e.y));
+                }
+                // Random Shoot
+                if(Math.random() < 0.01) {
+                    let bx = e.x + size/2, by = e.y + size/2;
+                    let bdx=0, bdy=0;
+                    if(e.dir===0) bdy = -4; if(e.dir===1) bdx = 4; if(e.dir===2) bdy = 4; if(e.dir===3) bdx = -4;
+                    bullets.push({x: bx, y: by, dx: bdx, dy: bdy, owner: 'e'});
+                }
+            });
+
+            // Bullets
+            for(let i=bullets.length-1; i>=0; i--) {
+                let b = bullets[i];
+                b.x += b.dx; b.y += b.dy;
+                if(b.x<0||b.x>canvas.width||b.y<0||b.y>canvas.height) {
+                    bullets.splice(i, 1);
+                    continue;
+                }
+                
+                // Collision
+                if(b.owner === 'p') {
+                    for(let j=enemies.length-1; j>=0; j--) {
+                        let e = enemies[j];
+                        if(b.x > e.x && b.x < e.x+size && b.y > e.y && b.y < e.y+size) {
+                            enemies.splice(j, 1);
+                            bullets.splice(i, 1);
+                            score += 100;
+                            break; // Bullet gone
+                        }
+                    }
+                } else {
+                    if(b.x > player.x && b.x < player.x+size && b.y > player.y && b.y < player.y+size) {
+                        gameOver = true;
+                        submitScore();
+                        alert("Game Over! Score: " + score);
+                        location.reload();
+                    }
+                }
+            }
+        }
+
+        function drawTank(x, y, dir, color) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, size, size);
+            // Barrel
+            ctx.fillStyle = '#999';
+            let bx=x+size/2-2, by=y+size/2-2, bw=4, bh=4;
+            if(dir===0) { by -= 10; bh=10; }
+            if(dir===1) { bx += 10; bw=10; }
+            if(dir===2) { by += 10; bh=10; }
+            if(dir===3) { bx -= 10; bw=10; }
+            ctx.fillRect(bx, by, bw, bh);
+            // Tracks
+            ctx.fillStyle = '#000';
+            if(dir===0 || dir===2) {
+                ctx.fillRect(x, y, 4, size); ctx.fillRect(x+size-4, y, 4, size);
+            } else {
+                ctx.fillRect(x, y, size, 4); ctx.fillRect(x, y+size-4, size, 4);
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            drawTank(player.x, player.y, player.dir, '#0f0');
+            
+            enemies.forEach(e => drawTank(e.x, e.y, e.dir, '#f00'));
+            
+            ctx.fillStyle = '#fff';
+            bullets.forEach(b => {
+                ctx.fillRect(b.x-2, b.y-2, 4, 4);
+            });
+
+            ctx.fillStyle = '#fff';
+            ctx.font = '20px monospace';
+            ctx.fillText("Score: " + score, 10, 20);
+        }
+
+        async function submitScore() {
+            if(!userId) return;
+            try {
+                await fetch('/api/scores', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ game_key: gameKey, user_id: parseInt(userId), score: score })
+                });
+            } catch(e) {}
+        }
+
+        function loop() {
+            update();
+            draw();
+            if(!gameOver) requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>

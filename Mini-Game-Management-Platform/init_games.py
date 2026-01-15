@@ -43,6 +43,56 @@ games = [
         "description": "虐心神作，看看你能飞多远。",
         "icon": "🐦",
         "url": "/static/games/flappy/index.html"
+    },
+    {
+        "game_key": "snake",
+        "name": "贪吃蛇",
+        "description": "经典怀旧，吃掉苹果变长！",
+        "icon": "🐍",
+        "url": "/static/games/snake/index.html"
+    },
+    # 新增游戏
+    {
+        "game_key": "raiden",
+        "name": "雷电战机",
+        "description": "太空射击，躲避弹幕击败敌人。",
+        "icon": "🚀",
+        "url": "/static/games/raiden/index.html"
+    },
+    {
+        "game_key": "poker",
+        "name": "21点扑克",
+        "description": "运气与策略的较量，以此赢取筹码。",
+        "icon": "🃏",
+        "url": "/static/games/poker/index.html"
+    },
+    {
+        "game_key": "gomoku",
+        "name": "五子棋",
+        "description": "黑白对弈，五子连珠者胜。",
+        "icon": "⚫",
+        "url": "/static/games/gomoku/index.html"
+    },
+    {
+        "game_key": "mole",
+        "name": "打地鼠",
+        "description": "拼手速，看见地鼠就敲！",
+        "icon": "🐹",
+        "url": "/static/games/mole/index.html"
+    },
+    {
+        "game_key": "maze",
+        "name": "迷宫挑战",
+        "description": "寻找出口，逃离迷宫。",
+        "icon": "🗺️",
+        "url": "/static/games/maze/index.html"
+    },
+    {
+        "game_key": "tank",
+        "name": "坦克大战",
+        "description": "保卫基地，消灭敌方坦克。",
+        "icon": "🛡️",
+        "url": "/static/games/tank/index.html"
     }
 ]
 

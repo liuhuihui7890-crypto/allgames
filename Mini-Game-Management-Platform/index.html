@@ -191,8 +191,8 @@
                 const currentGame = ref(null);
                 const showAd = ref(false);
                 const adCountdown = ref(5);
-                const gameIframe = ref(null); // Ref for iframe
-                const isExiting = ref(false); // State for exiting spinner
+                const gameIframe = ref(null); 
+                const isExiting = ref(false); 
                 let adTimer = null;
 
                 const instructions = {
@@ -201,7 +201,13 @@
                     'breakout': '⬅️ ➡️ 方向键或鼠标移动挡板',
                     '2048': '⬆️ ⬇️ ⬅️ ➡️ 方向键移动方块',
                     'flappy': '🖱️ 点击鼠标或屏幕跳跃',
-                    'snake': '⬆️ ⬇️ ⬅️ ➡️ 方向键控制移动'
+                    'snake': '⬆️ ⬇️ ⬅️ ➡️ 方向键控制移动',
+                    'raiden': '⬅️ ➡️ ⬆️ ⬇️ 移动，空格射击',
+                    'poker': '鼠标点击 Hit/Stand 按钮',
+                    'gomoku': '鼠标点击棋盘落子',
+                    'mole': '鼠标点击冒出的地鼠',
+                    'maze': '⬆️ ⬇️ ⬅️ ➡️ 移动蓝色方块到红色终点',
+                    'tank': '方向键移动，空格射击'
                 };
 
                 const handleAuth = async (type) => {
@@ -253,7 +259,6 @@
                         if (adCountdown.value <= 0) {
                             clearInterval(adTimer);
                             showAd.value = false; 
-                            // 广告结束，尝试让iframe聚焦
                             setTimeout(() => {
                                 if(gameIframe.value) gameIframe.value.contentWindow.focus();
                             }, 100);
@@ -269,17 +274,13 @@
                 };
 
                 const closeGame = () => {
-                    if(showAd.value) { // 如果在广告阶段，直接退出
+                    if(showAd.value) { 
                         performClose();
                         return;
                     }
-                    
-                    // 通知子游戏保存分数
                     isExiting.value = true;
                     if(gameIframe.value && gameIframe.value.contentWindow) {
                         gameIframe.value.contentWindow.postMessage('submit_and_exit', '*');
-                        
-                        // 设置一个超时，防止子游戏没反应导致卡住
                         setTimeout(() => {
                             if(isExiting.value) performClose();
                         }, 2000);
@@ -288,7 +289,6 @@
                     }
                 };
 
-                // 监听子游戏的消息
                 const messageHandler = (e) => {
                     if(e.data === 'score_submitted') {
                         performClose();
@@ -303,7 +303,6 @@
                     return `${game.url}${separator}uid=${user.value.id}&gkey=${game.id}`;
                 };
 
-                // --- 个人中心逻辑 ---
                 const showProfileModal = ref(false);
                 const userStats = ref([]);
                 const fileInput = ref(null);

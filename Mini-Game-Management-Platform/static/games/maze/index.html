@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Maze</title>
+    <style>
+        body { background: #2c3e50; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; color: white; font-family: sans-serif; }
+        canvas { background: #fff; border: 4px solid #34495e; }
+        #msg { margin-bottom: 10px; font-size: 20px; }
+    </style>
+</head>
+<body>
+    <div id="msg">Use Arrows to reach the Red square</div>
+    <canvas id="mazeCanvas" width="400" height="400"></canvas>
+    <script>
+        const canvas = document.getElementById('mazeCanvas');
+        const ctx = canvas.getContext('2d');
+        const cols = 20, rows = 20;
+        const size = 20;
+        let grid = [];
+        let current;
+        let stack = [];
+        let player = {c: 0, r: 0};
+        let goal = {c: cols-1, r: rows-1};
+        let score = 0; // Steps taken (lower is better? or just 100 for win) -> Let's do 100 points per win
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('uid');
+        const gameKey = urlParams.get('gkey') || 'maze';
+
+        window.addEventListener('message', async function(e) {
+            if(e.data === 'submit_and_exit') {
+                await submitScore();
+                window.parent.postMessage('score_submitted', '*');
+            }
+        });
+        window.onload = function() { window.focus(); };
+
+        class Cell {
+            constructor(c, r) {
+                this.c = c; this.r = r;
+                this.walls = [true, true, true, true]; // Top, Right, Bottom, Left
+                this.visited = false;
+            }
+            show() {
+                const x = this.c * size;
+                const y = this.r * size;
+                ctx.strokeStyle = "#2c3e50";
+                ctx.lineWidth = 2;
+                if (this.walls[0]) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + size, y); ctx.stroke(); }
+                if (this.walls[1]) { ctx.beginPath(); ctx.moveTo(x + size, y); ctx.lineTo(x + size, y + size); ctx.stroke(); }
+                if (this.walls[2]) { ctx.beginPath(); ctx.moveTo(x + size, y + size); ctx.lineTo(x, y + size); ctx.stroke(); }
+                if (this.walls[3]) { ctx.beginPath(); ctx.moveTo(x, y + size); ctx.lineTo(x, y); ctx.stroke(); }
+            }
+            checkNeighbors() {
+                let neighbors = [];
+                const top = grid[index(this.c, this.r - 1)];
+                const right = grid[index(this.c + 1, this.r)];
+                const bottom = grid[index(this.c, this.r + 1)];
+                const left = grid[index(this.c - 1, this.r)];
+                if (top && !top.visited) neighbors.push(top);
+                if (right && !right.visited) neighbors.push(right);
+                if (bottom && !bottom.visited) neighbors.push(bottom);
+                if (left && !left.visited) neighbors.push(left);
+                if (neighbors.length > 0) return neighbors[Math.floor(Math.random() * neighbors.length)];
+                return undefined;
+            }
+        }
+
+        function index(c, r) {
+            if (c < 0 || r < 0 || c >= cols || r >= rows) return -1;
+            return c + r * cols;
+        }
+
+        function setup() {
+            grid = []; stack = [];
+            for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) grid.push(new Cell(c, r));
+            current = grid[0];
+            generateMaze();
+        }
+
+        function generateMaze() {
+            // Recursive Backtracker (Iterative)
+            current.visited = true;
+            stack.push(current);
+            while(stack.length > 0) {
+                current = stack.pop(); // Pop current
+                const next = current.checkNeighbors();
+                if(next) {
+                    stack.push(current); // Push current back
+                    removeWalls(current, next);
+                    next.visited = true;
+                    stack.push(next); // Push next
+                }
+            }
+            draw();
+        }
+
+        function removeWalls(a, b) {
+            const x = a.c - b.c;
+            if (x === 1) { a.walls[3] = false; b.walls[1] = false; }
+            else if (x === -1) { a.walls[1] = false; b.walls[3] = false; }
+            const y = a.r - b.r;
+            if (y === 1) { a.walls[0] = false; b.walls[2] = false; }
+            else if (y === -1) { a.walls[2] = false; b.walls[0] = false; }
+        }
+
+        function draw() {
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < grid.length; i++) grid[i].show();
+
+            // Player
+            ctx.fillStyle = "#3498db";
+            ctx.fillRect(player.c * size + 4, player.r * size + 4, size - 8, size - 8);
+
+            // Goal
+            ctx.fillStyle = "#e74c3c";
+            ctx.fillRect(goal.c * size + 4, goal.r * size + 4, size - 8, size - 8);
+        }
+
+        function move(dc, dr) {
+            const idx = index(player.c, player.r);
+            const cell = grid[idx];
+            // Check walls
+            // Top:0, Right:1, Bottom:2, Left:3
+            if (dr === -1 && cell.walls[0]) return;
+            if (dc === 1 && cell.walls[1]) return;
+            if (dr === 1 && cell.walls[2]) return;
+            if (dc === -1 && cell.walls[3]) return;
+            
+            player.c += dc;
+            player.r += dr;
+            draw();
+
+            if(player.c === goal.c && player.r === goal.r) {
+                score += 100;
+                submitScore();
+                alert("You Escaped! Score: " + score);
+                player = {c:0, r:0};
+                setup();
+            }
+        }
+
+        window.addEventListener('keydown', e => {
+            if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) e.preventDefault();
+            if (e.key === 'ArrowUp') move(0, -1);
+            else if (e.key === 'ArrowRight') move(1, 0);
+            else if (e.key === 'ArrowDown') move(0, 1);
+            else if (e.key === 'ArrowLeft') move(-1, 0);
+        });
+
+        async function submitScore() {
+            if(!userId) return;
+            try {
+                await fetch('/api/scores', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ game_key: gameKey, user_id: parseInt(userId), score: score })
+                });
+            } catch(e) {}
+        }
+
+        setup();
+    </script>
+</body>
+</html>

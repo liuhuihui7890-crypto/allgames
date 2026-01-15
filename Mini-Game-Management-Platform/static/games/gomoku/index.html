@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gomoku</title>
+    <style>
+        body { background: #dcb35c; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: sans-serif; }
+        canvas { background: #eacb82; box-shadow: 5px 5px 15px rgba(0,0,0,0.3); cursor: crosshair; }
+        #msg { margin-top: 10px; font-size: 20px; font-weight: bold; color: #333; }
+        button { margin-top: 10px; padding: 8px 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <canvas id="board" width="450" height="450"></canvas>
+    <div id="msg">Your Turn (Black)</div>
+    <button onclick="resetGame()">New Game</button>
+
+    <script>
+        const canvas = document.getElementById('board');
+        const ctx = canvas.getContext('2d');
+        const size = 15;
+        const cellSize = 30;
+        let board = [];
+        let gameOver = false;
+        let score = 0; // Win count * 100
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('uid');
+        const gameKey = urlParams.get('gkey') || 'gomoku';
+
+        window.addEventListener('message', async function(e) {
+            if(e.data === 'submit_and_exit') {
+                await submitScore();
+                window.parent.postMessage('score_submitted', '*');
+            }
+        });
+
+        function initBoard() {
+            board = Array(size).fill().map(() => Array(size).fill(0));
+            drawBoard();
+            gameOver = false;
+            document.getElementById('msg').innerText = "Your Turn (Black)";
+        }
+
+        function drawBoard() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.beginPath();
+            ctx.strokeStyle = "#000";
+            for(let i=0; i<size; i++) {
+                ctx.moveTo(15 + i*cellSize, 15);
+                ctx.lineTo(15 + i*cellSize, 435);
+                ctx.moveTo(15, 15 + i*cellSize);
+                ctx.lineTo(435, 15 + i*cellSize);
+            }
+            ctx.stroke();
+
+            // Draw pieces
+            for(let y=0; y<size; y++) {
+                for(let x=0; x<size; x++) {
+                    if(board[y][x] !== 0) {
+                        ctx.beginPath();
+                        ctx.arc(15+x*cellSize, 15+y*cellSize, 13, 0, Math.PI*2);
+                        ctx.fillStyle = board[y][x] === 1 ? 'black' : 'white';
+                        ctx.fill();
+                        if(board[y][x] === 1) {
+                            ctx.strokeStyle = '#fff';
+                            ctx.stroke(); // Highlight player
+                        }
+                    }
+                }
+            }
+        }
+
+        canvas.addEventListener('click', e => {
+            if(gameOver) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor((e.clientX - rect.left) / cellSize);
+            const y = Math.floor((e.clientY - rect.top) / cellSize);
+            
+            if(x>=0 && x<size && y>=0 && y<size && board[y][x] === 0) {
+                board[y][x] = 1; // Player
+                drawBoard();
+                if(checkWin(x, y, 1)) {
+                    document.getElementById('msg').innerText = "You Win!";
+                    gameOver = true;
+                    score += 100;
+                    submitScore();
+                    return;
+                }
+                
+                // AI Turn
+                setTimeout(aiMove, 100);
+            }
+        });
+
+        function aiMove() {
+            if(gameOver) return;
+            // Very dumb AI: Random empty spot
+            let available = [];
+            for(let y=0; y<size; y++) for(let x=0; x<size; x++) if(board[y][x]===0) available.push({x,y});
+            
+            if(available.length > 0) {
+                // Try to find a winning move or block (simplified)
+                const move = available[Math.floor(Math.random()*available.length)];
+                board[move.y][move.x] = 2;
+                drawBoard();
+                if(checkWin(move.x, move.y, 2)) {
+                    document.getElementById('msg').innerText = "AI Wins!";
+                    gameOver = true;
+                }
+            }
+        }
+
+        function checkWin(cx, cy, player) {
+            const dirs = [[1,0], [0,1], [1,1], [1,-1]];
+            for(let d of dirs) {
+                let count = 1;
+                for(let i=1; i<5; i++) {
+                    const nx = cx + d[0]*i, ny = cy + d[1]*i;
+                    if(nx>=0 && nx<size && ny>=0 && ny<size && board[ny][nx] === player) count++; else break;
+                }
+                for(let i=1; i<5; i++) {
+                    const nx = cx - d[0]*i, ny = cy - d[1]*i;
+                    if(nx>=0 && nx<size && ny>=0 && ny<size && board[ny][nx] === player) count++; else break;
+                }
+                if(count >= 5) return true;
+            }
+            return false;
+        }
+
+        async function submitScore() {
+            if(!userId) return;
+            try {
+                await fetch('/api/scores', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ game_key: gameKey, user_id: parseInt(userId), score: score })
+                });
+            } catch(e) {}
+        }
+        
+        function resetGame() {
+            // score resets only on reload? keep score accumulation for session
+            initBoard();
+        }
+
+        initBoard();
+    </script>
+</body>
+</html>
