@@ -21,7 +21,7 @@
         const cellSize = 30;
         let board = [];
         let gameOver = false;
-        let score = 0; // Win count * 100
+        let score = 0; 
 
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('uid');
@@ -53,18 +53,35 @@
             }
             ctx.stroke();
 
+            // Draw center point
+            ctx.beginPath();
+            ctx.arc(15+7*cellSize, 15+7*cellSize, 4, 0, Math.PI*2);
+            ctx.fillStyle = '#000';
+            ctx.fill();
+
             // Draw pieces
             for(let y=0; y<size; y++) {
                 for(let x=0; x<size; x++) {
                     if(board[y][x] !== 0) {
                         ctx.beginPath();
                         ctx.arc(15+x*cellSize, 15+y*cellSize, 13, 0, Math.PI*2);
-                        ctx.fillStyle = board[y][x] === 1 ? 'black' : 'white';
-                        ctx.fill();
-                        if(board[y][x] === 1) {
-                            ctx.strokeStyle = '#fff';
-                            ctx.stroke(); // Highlight player
+                        
+                        // Gradient for 3D look
+                        const grad = ctx.createRadialGradient(
+                            15+x*cellSize-4, 15+y*cellSize-4, 2,
+                            15+x*cellSize, 15+y*cellSize, 13
+                        );
+                        
+                        if(board[y][x] === 1) { // Black
+                            grad.addColorStop(0, '#666');
+                            grad.addColorStop(1, '#000');
+                        } else { // White
+                            grad.addColorStop(0, '#fff');
+                            grad.addColorStop(1, '#ddd');
                         }
+                        
+                        ctx.fillStyle = grad;
+                        ctx.fill();
                     }
                 }
             }
@@ -87,28 +104,130 @@
                     return;
                 }
                 
+                document.getElementById('msg').innerText = "Thinking...";
                 // AI Turn
-                setTimeout(aiMove, 100);
+                setTimeout(aiMove, 50);
             }
         });
 
+        // --- AI Logic ---
+        
         function aiMove() {
             if(gameOver) return;
-            // Very dumb AI: Random empty spot
-            let available = [];
-            for(let y=0; y<size; y++) for(let x=0; x<size; x++) if(board[y][x]===0) available.push({x,y});
             
-            if(available.length > 0) {
-                // Try to find a winning move or block (simplified)
-                const move = available[Math.floor(Math.random()*available.length)];
+            let bestScore = -Infinity;
+            let move = {x: -1, y: -1};
+            
+            // Check center start if empty (classic opening)
+            const center = 7;
+            if(board[center][center] === 0) {
+                board[center][center] = 2;
+                drawBoard();
+                document.getElementById('msg').innerText = "Your Turn";
+                return;
+            }
+
+            // Iterate all empty spots
+            for(let y=0; y<size; y++) {
+                for(let x=0; x<size; x++) {
+                    if(board[y][x] === 0) {
+                        // Evaluate score for AI (2) attacking
+                        const attackScore = evaluatePoint(x, y, 2);
+                        // Evaluate score for Player (1) attacking (so AI can block)
+                        const defendScore = evaluatePoint(x, y, 1);
+                        
+                        // Total score. Defense is slightly more prioritized to not lose.
+                        // But if AI has a winning move, it should take it.
+                        let currentScore = attackScore + defendScore * 0.9;
+                        
+                        // Boost winning move
+                        if(attackScore >= 10000) currentScore += 100000;
+                        // Boost blocking winning move
+                        if(defendScore >= 10000) currentScore += 50000;
+
+                        if(currentScore > bestScore) {
+                            bestScore = currentScore;
+                            move = {x, y};
+                        } else if (currentScore === bestScore && Math.random() > 0.5) {
+                            // Randomize equal moves
+                            move = {x, y};
+                        }
+                    }
+                }
+            }
+            
+            if(move.x !== -1) {
                 board[move.y][move.x] = 2;
                 drawBoard();
                 if(checkWin(move.x, move.y, 2)) {
                     document.getElementById('msg').innerText = "AI Wins!";
                     gameOver = true;
+                } else {
+                    document.getElementById('msg').innerText = "Your Turn";
                 }
             }
         }
+
+        // Check patterns for a specific player at x,y
+        function evaluatePoint(x, y, player) {
+            let score = 0;
+            // Directions: Horizontal, Vertical, Diagonal \, Diagonal /
+            const dirs = [[1,0], [0,1], [1,1], [1,-1]];
+            
+            for(let d of dirs) {
+                const info = getLineInfo(x, y, d[0], d[1], player);
+                score += scorePattern(info.count, info.openEnds, info.space);
+            }
+            return score;
+        }
+
+        function getLineInfo(cx, cy, dx, dy, player) {
+            let count = 1;
+            let openEnds = 0;
+            let space = false; // Is there space to make 5?
+
+            // Check forward
+            let i=1;
+            while(true) {
+                const nx = cx + dx*i, ny = cy + dy*i;
+                if(nx<0||nx>=size||ny<0||ny>=size) break;
+                if(board[ny][nx] === player) { count++; }
+                else if(board[ny][nx] === 0) { openEnds++; break; }
+                else break; // Blocked
+                i++;
+            }
+            
+            // Check backward
+            let j=1;
+            while(true) {
+                const nx = cx - dx*j, ny = cy - dy*j;
+                if(nx<0||nx>=size||ny<0||ny>=size) break;
+                if(board[ny][nx] === player) { count++; }
+                else if(board[ny][nx] === 0) { openEnds++; break; }
+                else break; // Blocked
+                j++;
+            }
+            return {count, openEnds};
+        }
+
+        function scorePattern(count, openEnds, space) {
+            if (count >= 5) return 100000;
+            if (count === 4) {
+                if (openEnds === 2) return 10000; // Live 4 (Win next)
+                if (openEnds === 1) return 1000;  // Dead 4 (Force block)
+            }
+            if (count === 3) {
+                if (openEnds === 2) return 1000; // Live 3
+                if (openEnds === 1) return 100;  // Dead 3
+            }
+            if (count === 2) {
+                if (openEnds === 2) return 100;
+                if (openEnds === 1) return 10;
+            }
+            return 1;
+        }
+
+        // --- End AI Logic ---
 
         function checkWin(cx, cy, player) {
             const dirs = [[1,0], [0,1], [1,1], [1,-1]];
@@ -139,7 +258,6 @@
         }
         
         function resetGame() {
-            // score resets only on reload? keep score accumulation for session
             initBoard();
         }
 
