@@ -1,4 +1,5 @@
 fastapi
 uvicorn
 mysql-connector-python
-passlib[bcrypt]
+passlib
+bcrypt==4.0.1
