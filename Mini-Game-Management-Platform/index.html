@@ -29,6 +29,9 @@
                     <button @click="handleAuth('register')" class="bg-green-600 hover:bg-green-700 px-4 py-1.5 rounded-lg transition shadow-md">注册</button>
                 </div>
                 <div v-else class="flex items-center space-x-4">
+                    <button v-if="user.is_admin" @click="showAdminPanel=true" class="bg-purple-600 hover:bg-purple-700 px-3 py-1.5 rounded-lg transition shadow-md flex items-center gap-1">
+                        🔧 管理后台
+                    </button>
                     <button @click="openProfile" class="flex items-center space-x-3 bg-gray-700/50 hover:bg-gray-700 px-3 py-1.5 rounded-full border border-gray-600 transition">
                         <img :src="user.avatar" class="w-8 h-8 rounded-full border border-gray-500 object-cover">
                         <span class="font-medium text-gray-200">{{ user.username }}</span>
@@ -143,7 +146,7 @@
 
         <!-- 个人中心模态框 -->
         <div v-if="showProfileModal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 backdrop-blur-md p-4" @click.self="showProfileModal=false">
-            <div class="bg-gray-800 rounded-2xl w-full max-w-md border border-gray-600 shadow-2xl overflow-hidden">
+            <div class="bg-gray-800 rounded-2xl w-full max-w-md border border-gray-600 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
                 <div class="p-6 border-b border-gray-700 bg-gray-800 flex justify-between items-center">
                     <h2 class="text-2xl font-bold text-white">👤 个人中心</h2>
                     <button @click="showProfileModal=false" class="text-gray-400 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-full w-8 h-8 flex items-center justify-center transition">&times;</button>
@@ -162,9 +165,18 @@
                         <h3 class="text-xl font-bold mt-4">{{ user.username }}</h3>
                     </div>
 
+                    <!-- 修改密码区域 -->
+                    <div class="mb-8 bg-gray-700/30 p-4 rounded-xl border border-gray-700">
+                        <h4 class="font-bold mb-3 text-gray-300">安全设置</h4>
+                        <div class="flex gap-2">
+                            <input v-model="newPassword" type="password" placeholder="输入新密码" class="flex-grow bg-gray-800 text-white px-3 py-2 rounded-lg border border-gray-600 focus:outline-none focus:border-blue-500">
+                            <button @click="updatePassword" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition text-sm font-bold">修改密码</button>
+                        </div>
+                    </div>
+
                     <!-- 战绩列表 -->
                     <h4 class="text-gray-400 uppercase text-xs font-bold tracking-wider mb-4 border-b border-gray-700 pb-2">我的最佳战绩</h4>
-                    <div class="space-y-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                    <div class="space-y-3 max-h-[30vh] overflow-y-auto pr-2 custom-scrollbar">
                         <div v-if="userStats.length === 0" class="text-center text-gray-500 py-4">
                             暂无战绩，快去玩游戏吧！
                         </div>
@@ -175,6 +187,84 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- 管理后台模态框 -->
+        <div v-if="showAdminPanel" class="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
+             <div class="bg-gray-800 rounded-2xl w-full max-w-4xl border border-gray-600 shadow-2xl overflow-hidden h-[85vh] flex flex-col">
+                 <div class="p-4 border-b border-gray-700 bg-gray-800 flex justify-between items-center">
+                    <h2 class="text-2xl font-bold text-purple-400">🔧 管理后台</h2>
+                    <button @click="showAdminPanel=false" class="text-gray-400 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-full w-8 h-8 flex items-center justify-center transition">&times;</button>
+                </div>
+                
+                <div class="flex border-b border-gray-700">
+                    <button @click="adminTab='users'; fetchUsers()" class="px-6 py-3 font-bold transition" :class="adminTab==='users'?'bg-gray-700 text-white':'text-gray-400 hover:text-white'">用户管理</button>
+                    <button @click="adminTab='games'" class="px-6 py-3 font-bold transition" :class="adminTab==='games'?'bg-gray-700 text-white':'text-gray-400 hover:text-white'">游戏管理</button>
+                </div>
+
+                <div class="flex-grow overflow-y-auto p-6 bg-gray-900/50">
+                    <!-- 用户管理 -->
+                    <div v-if="adminTab==='users'">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="text-gray-400 border-b border-gray-700">
+                                    <th class="p-3">ID</th>
+                                    <th class="p-3">用户</th>
+                                    <th class="p-3">权限</th>
+                                    <th class="p-3">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="u in adminUsers" :key="u.id" class="border-b border-gray-800 hover:bg-gray-800/50">
+                                    <td class="p-3 text-gray-500">#{{u.id}}</td>
+                                    <td class="p-3 flex items-center gap-2">
+                                        <img :src="u.avatar_url" class="w-6 h-6 rounded-full">
+                                        {{u.username}}
+                                    </td>
+                                    <td class="p-3">
+                                        <span v-if="u.is_admin" class="bg-purple-900 text-purple-200 text-xs px-2 py-1 rounded">管理员</span>
+                                        <span v-else class="text-gray-500 text-sm">普通用户</span>
+                                    </td>
+                                    <td class="p-3">
+                                        <button v-if="!u.is_admin" @click="deleteUser(u.id)" class="text-red-400 hover:text-red-300 text-sm font-bold border border-red-900 bg-red-900/20 px-3 py-1 rounded">删除/封禁</button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 游戏管理 -->
+                    <div v-if="adminTab==='games'">
+                         <div class="mb-6 bg-gray-800 p-4 rounded-xl border border-gray-700">
+                             <h3 class="font-bold mb-3 text-green-400">添加/编辑游戏</h3>
+                             <div class="grid grid-cols-2 gap-4">
+                                 <input v-model="gameForm.game_key" placeholder="Game Key (e.g. tank)" class="bg-gray-900 p-2 rounded border border-gray-600">
+                                 <input v-model="gameForm.name" placeholder="游戏名称" class="bg-gray-900 p-2 rounded border border-gray-600">
+                                 <input v-model="gameForm.icon" placeholder="图标 (Emoji)" class="bg-gray-900 p-2 rounded border border-gray-600">
+                                 <input v-model="gameForm.url" placeholder="URL路径" class="bg-gray-900 p-2 rounded border border-gray-600">
+                                 <textarea v-model="gameForm.description" placeholder="描述" class="col-span-2 bg-gray-900 p-2 rounded border border-gray-600 h-20"></textarea>
+                             </div>
+                             <button @click="saveGame" class="mt-4 bg-green-600 hover:bg-green-700 px-6 py-2 rounded font-bold">保存游戏</button>
+                         </div>
+
+                         <div class="grid grid-cols-1 gap-4">
+                             <div v-for="g in games" :key="g.id" class="bg-gray-800 p-4 rounded-lg flex justify-between items-center border border-gray-700">
+                                 <div class="flex items-center gap-3">
+                                     <span class="text-2xl">{{g.icon}}</span>
+                                     <div>
+                                         <div class="font-bold">{{g.name}} <span class="text-gray-500 text-xs">({{g.id}})</span></div>
+                                         <div class="text-gray-400 text-sm">{{g.url}}</div>
+                                     </div>
+                                 </div>
+                                 <div class="flex gap-2">
+                                     <button @click="editGame(g)" class="bg-blue-900/50 text-blue-300 px-3 py-1 rounded text-sm hover:bg-blue-900">编辑</button>
+                                     <button @click="deleteGame(g.id)" class="bg-red-900/50 text-red-300 px-3 py-1 rounded text-sm hover:bg-red-900">删除</button>
+                                 </div>
+                             </div>
+                         </div>
+                    </div>
+                </div>
+             </div>
         </div>
     </div>
 
@@ -194,6 +284,17 @@
                 const gameIframe = ref(null); 
                 const isExiting = ref(false); 
                 let adTimer = null;
+
+                // Admin & Profile
+                const showProfileModal = ref(false);
+                const userStats = ref([]);
+                const fileInput = ref(null);
+                const newPassword = ref('');
+                
+                const showAdminPanel = ref(false);
+                const adminTab = ref('users');
+                const adminUsers = ref([]);
+                const gameForm = ref({game_key:'', name:'', description:'', icon:'', url:''});
 
                 const instructions = {
                     'tetris': '⬅️ ➡️ 移动，Q/W 旋转，⬇️ 加速', 
@@ -231,6 +332,54 @@
                     } catch (e) {
                         alert("网络错误");
                     }
+                };
+                
+                // Admin Functions
+                const fetchUsers = async () => {
+                    const res = await fetch('/api/admin/users');
+                    adminUsers.value = await res.json();
+                };
+                const deleteUser = async (id) => {
+                    if(!confirm("确定要删除该用户及其所有数据吗？")) return;
+                    await fetch(`/api/admin/users/${id}`, {method: 'DELETE'});
+                    fetchUsers();
+                };
+                const editGame = (g) => {
+                    gameForm.value = {
+                        game_key: g.id,
+                        name: g.name,
+                        description: g.desc,
+                        icon: g.icon,
+                        url: g.url
+                    };
+                };
+                const saveGame = async () => {
+                    if(!gameForm.value.game_key) return alert("Game Key 不能为空");
+                    await fetch('/api/admin/games', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(gameForm.value)
+                    });
+                    gameForm.value = {game_key:'', name:'', description:'', icon:'', url:''};
+                    loadGames(); // reload games list
+                    alert("游戏已保存");
+                };
+                const deleteGame = async (key) => {
+                    if(!confirm("确定要删除该游戏吗？")) return;
+                    await fetch(`/api/admin/games/${key}`, {method: 'DELETE'});
+                    loadGames();
+                };
+
+                // Profile Functions
+                const updatePassword = async () => {
+                    if(!newPassword.value) return;
+                    await fetch(`/api/user/${user.value.id}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({password: newPassword.value})
+                    });
+                    alert("密码修改成功");
+                    newPassword.value = '';
                 };
 
                 const fetchLeaderboard = async (gameId) => {
@@ -303,10 +452,6 @@
                     return `${game.url}${separator}uid=${user.value.id}&gkey=${game.id}`;
                 };
 
-                const showProfileModal = ref(false);
-                const userStats = ref([]);
-                const fileInput = ref(null);
-
                 const openProfile = async () => {
                     if(!user.value) return;
                     showProfileModal.value = true;
@@ -332,19 +477,24 @@
                         } else { alert("上传失败: " + data.detail); }
                     } catch (e) { alert("网络错误"); }
                 };
-
-                onMounted(async () => {
+                
+                const loadGames = async () => {
                     try {
                         const res = await fetch('/api/games');
                         games.value = await res.json();
                     } catch (e) { console.error("无法加载游戏列表", e); }
+                };
+
+                onMounted(() => {
+                    loadGames();
                 });
 
                 return { 
                     user, games, board, showBoard, boardGameName, auth, 
                     currentGame, showAd, adCountdown, getInstructions, isExiting, gameIframe,
                     handleAuth, fetchLeaderboard, logout, openGame, closeGame, getGameUrl, isCurrentUser,
-                    showProfileModal, userStats, openProfile, uploadAvatar, fileInput
+                    showProfileModal, userStats, openProfile, uploadAvatar, fileInput, newPassword, updatePassword,
+                    showAdminPanel, adminTab, adminUsers, gameForm, fetchUsers, deleteUser, editGame, saveGame, deleteGame
                 }
             }
         }).mount('#app')

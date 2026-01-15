@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Start MySQL if not running (it should be running by services.mysql)
-# But we might need to wait for it.
-
 # Connect as root (passwordless usually in dev envs) and create user/db
 mysql -u root -e "CREATE DATABASE IF NOT EXISTS minigame_platform;"
 mysql -u root -e "CREATE USER IF NOT EXISTS 'test'@'localhost' IDENTIFIED BY 'SA123';"
@@ -15,8 +12,14 @@ CREATE TABLE IF NOT EXISTS minigame_users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
-    avatar_url VARCHAR(255) DEFAULT '/static/avatars/default.png'
+    avatar_url VARCHAR(255) DEFAULT '/static/avatars/default.png',
+    is_admin TINYINT(1) DEFAULT 0
 );
+
+-- Try adding is_admin column if it doesn't exist (for migration)
+-- This is a bit hacky in pure SQL without procedure, so we rely on create if not exists
+-- If table exists but no column, manual alter is safer or just ignore errors here:
+-- ALTER TABLE minigame_users ADD COLUMN is_admin TINYINT(1) DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS minigame_list (
     game_key VARCHAR(50) PRIMARY KEY,
@@ -37,5 +40,8 @@ CREATE TABLE IF NOT EXISTS minigame_scores (
     FOREIGN KEY (user_id) REFERENCES minigame_users(id)
 );
 EOF
+
+# Separately try to alter table just in case it already existed without is_admin
+mysql -u test -pSA123 minigame_platform -e "ALTER TABLE minigame_users ADD COLUMN is_admin TINYINT(1) DEFAULT 0;" 2>/dev/null || true
 
 echo "Database initialized."
